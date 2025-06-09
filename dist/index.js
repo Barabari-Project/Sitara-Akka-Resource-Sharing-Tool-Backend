@@ -20,6 +20,6 @@ app.use('/api', create_route_1.createRouter);
 app.use('/api', get_route_1.getRouter);
 app.use('/api', auth_route_1.authRouter);
 app.use(error_middleware_1.errorHandler);
-app.listen(3001, () => {
-    console.log('Server is running on port 3001');
+app.listen(process.env.PORT, () => {
+    console.log(`Server is running on port ${process.env.PORT}`);
 });
