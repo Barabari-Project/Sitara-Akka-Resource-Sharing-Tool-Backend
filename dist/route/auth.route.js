@@ -19,6 +19,7 @@ const user_model_1 = require("../models/user.model");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const http_errors_1 = __importDefault(require("http-errors"));
+const auth_middleware_1 = require("../middleware/auth.middleware");
 exports.authRouter = (0, express_1.Router)();
 // POST /register
 exports.authRouter.post('/register', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -35,6 +36,7 @@ exports.authRouter.post('/register', (0, express_async_handler_1.default)((req, 
         firstName: firstName === null || firstName === void 0 ? void 0 : firstName.trim(),
         lastName: lastName === null || lastName === void 0 ? void 0 : lastName.trim(),
         age,
+        role: auth_middleware_1.UserRoles.USER,
         gender: gender === null || gender === void 0 ? void 0 : gender.trim(),
         std: std === null || std === void 0 ? void 0 : std.trim()
     });
@@ -51,7 +53,7 @@ exports.authRouter.post('/login', (0, express_async_handler_1.default)((req, res
     if (!user) {
         throw (0, http_errors_1.default)(404, 'User not found');
     }
-    const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber }, process.env.JWT_SECRET, {
+    const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET, {
         expiresIn: '7d'
     });
     res.status(200).json({ message: 'Login successful', token });

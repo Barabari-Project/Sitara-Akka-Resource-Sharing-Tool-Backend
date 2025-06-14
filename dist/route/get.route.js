@@ -54,7 +54,7 @@ exports.getRouter.get('/resource-items/:subDataId', (0, express_async_handler_1.
     res.status(200).json({ items });
 })));
 // GET resource item link by ID
-exports.getRouter.get('/resource-items/link/:id', auth_middleware_1.authMiddleware, (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+exports.getRouter.get('/resource-items/link/:id', (0, auth_middleware_1.authMiddleware)([auth_middleware_1.UserRoles.ADMIN, auth_middleware_1.UserRoles.USER]), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     const item = yield resourceItem_model_1.ResourceItemModel.findById(id).select('link');
     if (!item) {
@@ -63,7 +63,7 @@ exports.getRouter.get('/resource-items/link/:id', auth_middleware_1.authMiddlewa
     res.status(200).json({ link: item.link });
 })));
 // GET SubData's data array by SubData ID
-exports.getRouter.get('/subdata/link/:id', auth_middleware_1.authMiddleware, (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+exports.getRouter.get('/subdata/link/:id', (0, auth_middleware_1.authMiddleware)([auth_middleware_1.UserRoles.ADMIN, auth_middleware_1.UserRoles.USER]), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     const subData = yield subdata_model_1.SubDataModel.findById(id).select('link');
     if (!subData || !subData.link) {

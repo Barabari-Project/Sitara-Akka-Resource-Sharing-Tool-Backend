@@ -14,13 +14,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createRouter = void 0;
 const express_1 = require("express");
-const resource_model_1 = require("../models/resource.model");
-const resourceDataEntry_model_1 = require("../models/resourceDataEntry.model");
-const subdata_model_1 = require("../models/subdata.model");
-const resourceItem_model_1 = require("../models/resourceItem.model");
-const mongoose_1 = __importDefault(require("mongoose"));
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const http_errors_1 = __importDefault(require("http-errors"));
+const mongoose_1 = __importDefault(require("mongoose"));
+const resource_model_1 = require("../models/resource.model");
+const resourceDataEntry_model_1 = require("../models/resourceDataEntry.model");
+const resourceItem_model_1 = require("../models/resourceItem.model");
+const subdata_model_1 = require("../models/subdata.model");
+const multer_1 = __importDefault(require("multer"));
+const awsS3_1 = require("../utility/awsS3");
 exports.createRouter = (0, express_1.Router)();
 // POST /resources - Create new resource with validation and duplicate check
 exports.createRouter.post('/resources', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -44,30 +46,72 @@ exports.createRouter.post('/resources', (0, express_async_handler_1.default)((re
     yield resource.save();
     res.status(201).json({ message: 'Resource created', resource });
 })));
+// PUT /resources/:id
+exports.createRouter.put('/resources/:id', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const { lan, class: className, subj } = req.body;
+    if (!lan || !className || !subj) {
+        throw (0, http_errors_1.default)(400, 'lan, class, and subj are required fields');
+    }
+    // Check if resource exists
+    const existingResource = yield resource_model_1.ResourceModel.findById(id);
+    if (!existingResource) {
+        throw (0, http_errors_1.default)(404, 'Resource not found');
+    }
+    // Check for duplicate (excluding current)
+    const duplicate = yield resource_model_1.ResourceModel.findOne({
+        _id: { $ne: id },
+        lan,
+        class: className,
+        subj
+    });
+    if (duplicate) {
+        throw (0, http_errors_1.default)(409, 'Another resource with same lan, class, and subj exists');
+    }
+    // Update fields
+    existingResource.lan = lan;
+    existingResource.class = className;
+    existingResource.subj = subj;
+    yield existingResource.save();
+    res.status(200).json({ message: 'Resource updated', resource: existingResource });
+})));
+// DELETE /resources/:id
+exports.createRouter.delete('/resources/:id', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const resource = yield resource_model_1.ResourceModel.findById(id);
+    if (!resource) {
+        throw (0, http_errors_1.default)(404, 'Resource not found');
+    }
+    if (resource.data.length > 0) {
+        throw (0, http_errors_1.default)(400, 'Cannot delete resource with linked data entries');
+    }
+    yield resource_model_1.ResourceModel.findByIdAndDelete(id);
+    res.status(200).json({ message: 'Resource deleted successfully' });
+})));
 // POST /resource-data-entries
 exports.createRouter.post('/resource-data-entries', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const session = yield mongoose_1.default.startSession();
     session.startTransaction();
+    const { type, resourceId } = req.body;
+    // Validate: type
+    if (!type || typeof type !== 'string' || type.trim() === '') {
+        throw (0, http_errors_1.default)(400, 'Field "type" is required and cannot be empty.');
+    }
+    // Validate: resourceId is valid ObjectId
+    if (!resourceId || !mongoose_1.default.Types.ObjectId.isValid(resourceId)) {
+        throw (0, http_errors_1.default)(400, 'Valid "resourceId" is required.');
+    }
+    // Check resource existence
+    const resourceExists = yield resource_model_1.ResourceModel.exists({ _id: resourceId });
+    if (!resourceExists) {
+        throw (0, http_errors_1.default)(404, 'Resource with the given ID does not exist.');
+    }
+    // Check for duplicate type + resourceId combination
+    const alreadyExists = yield resourceDataEntry_model_1.ResourceDataEntryModel.exists({ type: type.trim(), resourceId });
+    if (alreadyExists) {
+        throw (0, http_errors_1.default)(409, 'ResourceDataEntry with this type already exists for the given resource.');
+    }
     try {
-        const { type, resourceId } = req.body;
-        // Validate: type
-        if (!type || typeof type !== 'string' || type.trim() === '') {
-            throw (0, http_errors_1.default)(400, 'Field "type" is required and cannot be empty.');
-        }
-        // Validate: resourceId is valid ObjectId
-        if (!resourceId || !mongoose_1.default.Types.ObjectId.isValid(resourceId)) {
-            throw (0, http_errors_1.default)(400, 'Valid "resourceId" is required.');
-        }
-        // Check resource existence
-        const resourceExists = yield resource_model_1.ResourceModel.exists({ _id: resourceId });
-        if (!resourceExists) {
-            throw (0, http_errors_1.default)(404, 'Resource with the given ID does not exist.');
-        }
-        // Check for duplicate type + resourceId combination
-        const alreadyExists = yield resourceDataEntry_model_1.ResourceDataEntryModel.exists({ type: type.trim(), resourceId });
-        if (alreadyExists) {
-            throw (0, http_errors_1.default)(409, 'ResourceDataEntry with this type already exists for the given resource.');
-        }
         // Create and save
         const resourceEntry = new resourceDataEntry_model_1.ResourceDataEntryModel({
             type: type.trim(),
@@ -81,122 +125,395 @@ exports.createRouter.post('/resource-data-entries', (0, express_async_handler_1.
     }
     catch (err) {
         yield session.abortTransaction();
-        throw (0, http_errors_1.default)(500, 'Failed to create ResourceDataEntry', err);
+        throw err;
     }
     finally {
         session.endSession();
     }
 })));
-// POST /subdata
-exports.createRouter.post('/subdata', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+// PUT /resource-data-entries/:id
+exports.createRouter.put('/resource-data-entries/:id', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const { type, resourceId } = req.body;
+    if (!type || typeof type !== 'string' || type.trim() === '') {
+        throw (0, http_errors_1.default)(400, 'Field "type" is required and cannot be empty.');
+    }
+    if (!resourceId || !mongoose_1.default.Types.ObjectId.isValid(resourceId)) {
+        throw (0, http_errors_1.default)(400, 'Valid "resourceId" is required.');
+    }
+    const resourceExists = yield resource_model_1.ResourceModel.exists({ _id: resourceId });
+    if (!resourceExists) {
+        throw (0, http_errors_1.default)(404, 'Resource not found.');
+    }
+    const entry = yield resourceDataEntry_model_1.ResourceDataEntryModel.findById(id);
+    if (!entry) {
+        throw (0, http_errors_1.default)(404, 'ResourceDataEntry not found.');
+    }
+    // Check uniqueness for new (type + resourceId) combo
+    const duplicate = yield resourceDataEntry_model_1.ResourceDataEntryModel.findOne({
+        _id: { $ne: id },
+        type: type.trim(),
+        resourceId
+    });
+    if (duplicate) {
+        throw (0, http_errors_1.default)(409, 'Another entry with the same type already exists for this resource.');
+    }
+    // Update fields
+    entry.type = type.trim();
+    yield entry.save();
+    res.status(200).json({ message: 'ResourceDataEntry updated', entry });
+})));
+// DELETE /resource-data-entries/:id
+exports.createRouter.delete('/resource-data-entries/:id', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const entry = yield resourceDataEntry_model_1.ResourceDataEntryModel.findById(id);
+    if (!entry) {
+        throw (0, http_errors_1.default)(404, 'ResourceDataEntry not found.');
+    }
+    if (entry.data.length > 0) {
+        throw (0, http_errors_1.default)(400, 'Cannot delete: linked SubData still exists.');
+    }
     const session = yield mongoose_1.default.startSession();
     session.startTransaction();
     try {
-        const { name, datatype, link, resourceDataEntryId } = req.body;
-        // Basic validation
-        if (!name || typeof name !== 'string' || name.trim() === '') {
-            throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
+        // Remove ref from parent Resource
+        yield resource_model_1.ResourceModel.findByIdAndUpdate(entry.resourceId, { $pull: { data: entry._id } }, { session });
+        yield resourceDataEntry_model_1.ResourceDataEntryModel.findByIdAndDelete(entry._id, { session });
+        yield session.commitTransaction();
+        res.status(200).json({ message: 'ResourceDataEntry deleted successfully' });
+    }
+    catch (err) {
+        yield session.abortTransaction();
+        throw err;
+    }
+    finally {
+        session.endSession();
+    }
+})));
+// TODO: set file size limit understand multer config
+// Multer config
+const storage = multer_1.default.memoryStorage();
+const upload = (0, multer_1.default)({ storage });
+// POST /subdata
+exports.createRouter.post('/subdata', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const session = yield mongoose_1.default.startSession();
+    session.startTransaction();
+    const { name, datatype, resourceDataEntryId } = req.body;
+    const file = req.file;
+    // Basic validation
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+        throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
+    }
+    if (!['string', 'array'].includes(datatype)) {
+        throw (0, http_errors_1.default)(400, '"datatype" must be either "string" or "array".');
+    }
+    if (!resourceDataEntryId || !mongoose_1.default.Types.ObjectId.isValid(resourceDataEntryId)) {
+        throw (0, http_errors_1.default)(400, 'Valid "resourceDataEntryId" is required.');
+    }
+    let link = '';
+    if (datatype === 'string') {
+        if (!file) {
+            throw (0, http_errors_1.default)(400, '"file" must be provided when datatype is "string".');
         }
-        if (!['string', 'array'].includes(datatype)) {
-            throw (0, http_errors_1.default)(400, '"datatype" must be either "string" or "array".');
+    }
+    if (datatype === 'array' && link) {
+        throw (0, http_errors_1.default)(400, '"link" must not be provided when datatype is "array".');
+    }
+    // Check if parent exists
+    const entryExists = yield resourceDataEntry_model_1.ResourceDataEntryModel.exists({ _id: resourceDataEntryId });
+    if (!entryExists) {
+        throw (0, http_errors_1.default)(404, 'Parent ResourceDataEntry not found.');
+    }
+    const subDataExists = yield subdata_model_1.SubDataModel.exists({ name: name.trim(), datatype, resourceDataEntryId });
+    if (subDataExists) {
+        throw (0, http_errors_1.default)(409, 'SubData with same name, datatype and link already exists under this entry.');
+    }
+    // Check for duplicate
+    const duplicateQuery = {
+        name: name.trim(),
+        datatype,
+        resourceDataEntryId
+    };
+    if (datatype === 'string') {
+        duplicateQuery.link = link.trim();
+    }
+    const duplicate = yield subdata_model_1.SubDataModel.exists(duplicateQuery);
+    if (duplicate) {
+        throw (0, http_errors_1.default)(409, 'SubData with same name, datatype and link already exists under this entry.');
+    }
+    // Create and save
+    const subData = new subdata_model_1.SubDataModel({
+        name: name.trim(),
+        datatype,
+        data: [],
+        resourceDataEntryId
+    });
+    try {
+        const updatedResourceEntry = yield resourceDataEntry_model_1.ResourceDataEntryModel.findByIdAndUpdate(resourceDataEntryId, { $push: { data: subData._id } }, { session });
+        if (file) {
+            subData.link = `${updatedResourceEntry === null || updatedResourceEntry === void 0 ? void 0 : updatedResourceEntry.resourceId}/${resourceDataEntryId}/${subData._id}`;
         }
-        if (!resourceDataEntryId || !mongoose_1.default.Types.ObjectId.isValid(resourceDataEntryId)) {
-            throw (0, http_errors_1.default)(400, 'Valid "resourceDataEntryId" is required.');
-        }
-        // Link requirement based on datatype
-        if (datatype === 'string' && (!link || typeof link !== 'string' || link.trim() === '')) {
-            throw (0, http_errors_1.default)(400, '"link" is required when datatype is "string".');
-        }
-        if (datatype === 'array' && link) {
-            throw (0, http_errors_1.default)(400, '"link" must not be provided when datatype is "array".');
-        }
-        // Check if parent exists
-        const entryExists = yield resourceDataEntry_model_1.ResourceDataEntryModel.exists({ _id: resourceDataEntryId });
-        if (!entryExists) {
-            throw (0, http_errors_1.default)(404, 'Parent ResourceDataEntry not found.');
-        }
-        // Check for duplicate
-        const duplicateQuery = {
-            name: name.trim(),
-            datatype,
-            resourceDataEntryId
-        };
-        if (datatype === 'string') {
-            duplicateQuery.link = link.trim();
-        }
-        const duplicate = yield subdata_model_1.SubDataModel.exists(duplicateQuery);
-        if (duplicate) {
-            throw (0, http_errors_1.default)(409, 'SubData with same name, datatype and link already exists under this entry.');
-        }
-        // Create and save
-        const subData = new subdata_model_1.SubDataModel({
-            name: name.trim(),
-            datatype,
-            link: datatype === 'string' ? link.trim() : '',
-            data: [],
-            resourceDataEntryId
-        });
         yield subData.save({ session });
-        yield resourceDataEntry_model_1.ResourceDataEntryModel.findByIdAndUpdate(resourceDataEntryId, { $push: { data: subData._id } }, { session });
+        // Upload to S3
+        if (file) {
+            yield (0, awsS3_1.uploadToS3)(file.buffer, subData.link, file.mimetype);
+        }
         yield session.commitTransaction();
         res.status(201).json({ message: 'SubData created and linked', subData });
     }
     catch (err) {
         yield session.abortTransaction();
-        throw (0, http_errors_1.default)(500, 'Failed to create SubData', err);
+        throw err;
+    }
+    finally {
+        session.endSession();
+    }
+})));
+exports.createRouter.put('/subdata/:id', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const { name, datatype, resourceDataEntryId } = req.body;
+    const file = req.file;
+    const session = yield mongoose_1.default.startSession();
+    session.startTransaction();
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+        throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
+    }
+    if (!['string', 'array'].includes(datatype)) {
+        throw (0, http_errors_1.default)(400, '"datatype" must be either "string" or "array".');
+    }
+    if (!resourceDataEntryId || !mongoose_1.default.Types.ObjectId.isValid(resourceDataEntryId)) {
+        throw (0, http_errors_1.default)(400, 'Valid "resourceDataEntryId" is required.');
+    }
+    const existingSubData = yield subdata_model_1.SubDataModel.findById(id);
+    if (!existingSubData) {
+        throw (0, http_errors_1.default)(404, 'SubData not found.');
+    }
+    const parentEntry = yield resourceDataEntry_model_1.ResourceDataEntryModel.findById(resourceDataEntryId);
+    if (!parentEntry) {
+        throw (0, http_errors_1.default)(404, 'Parent ResourceDataEntry not found.');
+    }
+    if (datatype === 'array' && file) {
+        throw (0, http_errors_1.default)(400, '"file" must not be provided when datatype is "array".');
+    }
+    // Check for duplicate on (name, datatype, resourceDataEntryId, link)
+    const duplicateQuery = {
+        _id: { $ne: id },
+        name: name.trim(),
+        datatype,
+        resourceDataEntryId
+    };
+    if (datatype === 'string') {
+        duplicateQuery.link = `${parentEntry.resourceId}/${resourceDataEntryId}/${id}`;
+    }
+    const duplicate = yield subdata_model_1.SubDataModel.findOne(duplicateQuery);
+    if (duplicate) {
+        throw (0, http_errors_1.default)(409, 'Duplicate SubData with the same name, datatype and link exists.');
+    }
+    // Update fields
+    existingSubData.name = name.trim();
+    existingSubData.datatype = datatype;
+    if (datatype === 'string') {
+        if (existingSubData.data.length > 0) {
+            throw (0, http_errors_1.default)(400, 'Cannot update: linked ResourceItem still exists.');
+        }
+        const newLink = `${parentEntry.resourceId}/${resourceDataEntryId}/${id}`;
+        existingSubData.link = newLink;
+    }
+    else {
+        existingSubData.link = '';
+    }
+    try {
+        yield existingSubData.save({ session });
+        if (file) {
+            yield (0, awsS3_1.uploadToS3)(file.buffer, existingSubData.link, file.mimetype);
+        }
+        yield session.commitTransaction();
+        res.status(200).json({ message: 'SubData updated successfully', subData: existingSubData });
+    }
+    catch (err) {
+        yield session.abortTransaction();
+        throw err;
+    }
+    finally {
+        session.endSession();
+    }
+})));
+exports.createRouter.delete('/subdata/:id', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const session = yield mongoose_1.default.startSession();
+    session.startTransaction();
+    const subData = yield subdata_model_1.SubDataModel.findById(id);
+    if (!subData) {
+        throw (0, http_errors_1.default)(404, 'SubData not found.');
+    }
+    if (subData.data.length > 0) {
+        throw (0, http_errors_1.default)(400, 'Cannot delete SubData that has linked ResourceItems.');
+    }
+    try {
+        // Remove ref from parent
+        yield resourceDataEntry_model_1.ResourceDataEntryModel.findByIdAndUpdate(subData.resourceDataEntryId, { $pull: { data: subData._id } }, { session });
+        yield subdata_model_1.SubDataModel.findByIdAndDelete(subData._id, { session });
+        // Optionally delete S3 file if it exists
+        if (subData.link) {
+            yield (0, awsS3_1.deleteFromS3)(subData.link);
+        }
+        yield session.commitTransaction();
+        res.status(200).json({ message: 'SubData deleted successfully' });
+    }
+    catch (err) {
+        yield session.abortTransaction();
+        throw err;
     }
     finally {
         session.endSession();
     }
 })));
 // POST /resource-items
-exports.createRouter.post('/resource-items', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+exports.createRouter.post('/resource-items', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const session = yield mongoose_1.default.startSession();
     session.startTransaction();
+    const { name, type, subDataId } = req.body;
+    const file = req.file;
+    // Validation: Required fields
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+        throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
+    }
+    if (!file) {
+        throw (0, http_errors_1.default)(400, '"file" is required and cannot be empty.');
+    }
+    if (!type || typeof type !== 'string' || type.trim() === '') {
+        throw (0, http_errors_1.default)(400, '"type" is required and cannot be empty.');
+    }
+    if (!subDataId || !mongoose_1.default.Types.ObjectId.isValid(subDataId)) {
+        throw (0, http_errors_1.default)(400, 'Valid "subDataId" is required.');
+    }
+    // Check if subData exists
+    const subDataExists = yield subdata_model_1.SubDataModel.exists({ _id: subDataId });
+    if (!subDataExists) {
+        throw (0, http_errors_1.default)(404, 'SubData with the given ID does not exist.');
+    }
+    // Check for duplicate
+    const duplicate = yield resourceItem_model_1.ResourceItemModel.exists({
+        name: name.trim(),
+        type: type.trim(),
+        subDataId
+    });
+    if (duplicate) {
+        throw (0, http_errors_1.default)(409, 'ResourceItem with the same name, link, and type already exists under this SubData.');
+    }
     try {
-        const { name, link, type, subDataId } = req.body;
-        // Validation: Required fields
-        if (!name || typeof name !== 'string' || name.trim() === '') {
-            throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
-        }
-        if (!link || typeof link !== 'string' || link.trim() === '') {
-            throw (0, http_errors_1.default)(400, '"link" is required and cannot be empty.');
-        }
-        if (!type || typeof type !== 'string' || type.trim() === '') {
-            throw (0, http_errors_1.default)(400, '"type" is required and cannot be empty.');
-        }
-        if (!subDataId || !mongoose_1.default.Types.ObjectId.isValid(subDataId)) {
-            throw (0, http_errors_1.default)(400, 'Valid "subDataId" is required.');
-        }
-        // Check if subData exists
-        const subDataExists = yield subdata_model_1.SubDataModel.exists({ _id: subDataId });
-        if (!subDataExists) {
-            throw (0, http_errors_1.default)(404, 'SubData with the given ID does not exist.');
-        }
-        // Check for duplicate
-        const duplicate = yield resourceItem_model_1.ResourceItemModel.exists({
-            name: name.trim(),
-            type: type.trim(),
-            subDataId
-        });
-        if (duplicate) {
-            throw (0, http_errors_1.default)(409, 'ResourceItem with the same name, link, and type already exists under this SubData.');
-        }
         // Create and link
         const resourceItem = new resourceItem_model_1.ResourceItemModel({
             name: name.trim(),
-            link: link.trim(),
             type: type.trim(),
             subDataId
         });
+        const updatedSubData = yield subdata_model_1.SubDataModel.findByIdAndUpdate(subDataId, { $push: { data: resourceItem._id } }, { session }).populate({
+            path: 'resourceDataEntryId',
+            select: 'resourceId _id'
+        });
+        if (!(updatedSubData === null || updatedSubData === void 0 ? void 0 : updatedSubData.resourceDataEntryId)) {
+            throw (0, http_errors_1.default)(404, 'Failed to populate resourceDataEntryId');
+        }
+        const resourceDataEntry = updatedSubData.resourceDataEntryId;
+        resourceItem.link = `${resourceDataEntry.resourceId}/${resourceDataEntry._id}/${updatedSubData._id}/${resourceItem._id}`;
         yield resourceItem.save({ session });
-        yield subdata_model_1.SubDataModel.findByIdAndUpdate(subDataId, { $push: { data: resourceItem._id } }, { session });
+        if (file) {
+            yield (0, awsS3_1.uploadToS3)(file.buffer, resourceItem.link, file.mimetype);
+        }
         yield session.commitTransaction();
         res.status(201).json({ message: 'ResourceItem created and linked', resourceItem });
     }
     catch (err) {
         yield session.abortTransaction();
-        throw (0, http_errors_1.default)(500, 'Failed to create ResourceItem', err);
+        throw err;
+    }
+    finally {
+        session.endSession();
+    }
+})));
+exports.createRouter.put('/resource-items/:id', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const { name, type, subDataId } = req.body;
+    const file = req.file;
+    const session = yield mongoose_1.default.startSession();
+    session.startTransaction();
+    // Validate ID and required fields
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+        throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
+    }
+    if (!type || typeof type !== 'string' || type.trim() === '') {
+        throw (0, http_errors_1.default)(400, '"type" is required and cannot be empty.');
+    }
+    if (!subDataId || !mongoose_1.default.Types.ObjectId.isValid(subDataId)) {
+        throw (0, http_errors_1.default)(400, 'Valid "subDataId" is required.');
+    }
+    const existingItem = yield resourceItem_model_1.ResourceItemModel.findById(id);
+    if (!existingItem) {
+        throw (0, http_errors_1.default)(404, 'ResourceItem not found.');
+    }
+    const subData = yield subdata_model_1.SubDataModel.findById(subDataId).populate({
+        path: 'resourceDataEntryId',
+        select: 'resourceId'
+    });
+    if (!subData || !subData.resourceDataEntryId) {
+        throw (0, http_errors_1.default)(404, 'Linked SubData or its parent entry not found.');
+    }
+    try {
+        // Check for duplicate
+        const duplicate = yield resourceItem_model_1.ResourceItemModel.findOne({
+            _id: { $ne: id },
+            name: name.trim(),
+            type: type.trim(),
+            subDataId
+        });
+        if (duplicate) {
+            throw (0, http_errors_1.default)(409, 'Another ResourceItem with same name and type exists under this SubData.');
+        }
+        // Update values
+        existingItem.name = name.trim();
+        existingItem.type = type.trim();
+        // Construct new S3 link and upload if file provided
+        const resourceDataEntry = subData.resourceDataEntryId;
+        existingItem.link = `${resourceDataEntry.resourceId}/${resourceDataEntry._id}/${subData._id}/${id}`;
+        yield existingItem.save({ session });
+        if (file) {
+            yield (0, awsS3_1.uploadToS3)(file.buffer, existingItem.link, file.mimetype);
+        }
+        yield session.commitTransaction();
+        res.status(200).json({ message: 'ResourceItem updated successfully', resourceItem: existingItem });
+    }
+    catch (err) {
+        yield session.abortTransaction();
+        throw err;
+    }
+    finally {
+        session.endSession();
+    }
+})));
+exports.createRouter.delete('/resource-items/:id', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const session = yield mongoose_1.default.startSession();
+    session.startTransaction();
+    const item = yield resourceItem_model_1.ResourceItemModel.findById(id);
+    if (!item) {
+        throw (0, http_errors_1.default)(404, 'ResourceItem not found.');
+    }
+    try {
+        // Remove from parent subData
+        yield subdata_model_1.SubDataModel.findByIdAndUpdate(item.subDataId, { $pull: { data: item._id } }, { session });
+        // Delete ResourceItem
+        yield resourceItem_model_1.ResourceItemModel.findByIdAndDelete(item._id, { session });
+        // Delete from S3 if file exists
+        if (item.link) {
+            yield (0, awsS3_1.deleteFromS3)(item.link);
+        }
+        yield session.commitTransaction();
+        res.status(200).json({ message: 'ResourceItem deleted successfully' });
+    }
+    catch (err) {
+        yield session.abortTransaction();
+        throw err;
     }
     finally {
         session.endSession();

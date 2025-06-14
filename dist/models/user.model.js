@@ -36,12 +36,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserModel = void 0;
 // models/User.ts
 const mongoose_1 = __importStar(require("mongoose"));
+const auth_middleware_1 = require("../middleware/auth.middleware");
 const UserSchema = new mongoose_1.Schema({
     phoneNumber: { type: String, required: true, unique: true },
     firstName: String,
     lastName: String,
     age: Number,
     gender: { type: String, enum: ['male', 'female', 'other'] },
-    std: String
+    std: String,
+    role: { type: String, enum: Object.values(auth_middleware_1.UserRoles), default: auth_middleware_1.UserRoles.USER }
 });
 exports.UserModel = mongoose_1.default.model('User', UserSchema);
