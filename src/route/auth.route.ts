@@ -4,6 +4,7 @@ import { UserModel } from '../models/user.model';
 import jwt from 'jsonwebtoken';
 import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
+import { UserRoles } from '../middleware/auth.middleware';
 
 export const authRouter = Router();
 
@@ -26,6 +27,7 @@ authRouter.post('/register', expressAsyncHandler(async (req: Request, res: Respo
         firstName: firstName?.trim(),
         lastName: lastName?.trim(),
         age,
+        role: UserRoles.USER,
         gender: gender?.trim(),
         std: std?.trim()
     });
@@ -49,7 +51,7 @@ authRouter.post('/login', expressAsyncHandler(async (req: Request, res: Response
         throw createHttpError(404, 'User not found');
     }
 
-    const token = jwt.sign({ phoneNumber: user.phoneNumber }, process.env.JWT_SECRET!, {
+    const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
         expiresIn: '7d'
     });
 

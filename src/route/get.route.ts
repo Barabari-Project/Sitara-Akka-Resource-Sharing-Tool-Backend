@@ -3,7 +3,7 @@ import { ResourceModel } from '../models/resource.model';
 import { ResourceDataEntryModel } from '../models/resourceDataEntry.model';
 import { SubDataModel } from '../models/subdata.model';
 import { ResourceItemModel } from '../models/resourceItem.model';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, UserRoles } from '../middleware/auth.middleware';
 import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
 
@@ -49,7 +49,7 @@ getRouter.get('/resource-items/:subDataId', expressAsyncHandler(async (req: Requ
 
 
 // GET resource item link by ID
-getRouter.get('/resource-items/link/:id', authMiddleware, expressAsyncHandler(async (req: Request, res: Response) => {
+getRouter.get('/resource-items/link/:id', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), expressAsyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const item = await ResourceItemModel.findById(id).select('link');
@@ -62,7 +62,7 @@ getRouter.get('/resource-items/link/:id', authMiddleware, expressAsyncHandler(as
 }));
 
 // GET SubData's data array by SubData ID
-getRouter.get('/subdata/link/:id', authMiddleware, expressAsyncHandler(async (req: Request, res: Response) => {
+getRouter.get('/subdata/link/:id', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), expressAsyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const subData = await SubDataModel.findById(id).select('link');

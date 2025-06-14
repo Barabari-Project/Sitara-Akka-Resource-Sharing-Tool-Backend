@@ -6,6 +6,7 @@ import { createRouter } from './route/create.route';
 import { getRouter } from './route/get.route';
 import { authRouter } from './route/auth.route';
 import { errorHandler } from './middleware/error.middleware';
+import { authMiddleware, UserRoles } from './middleware/auth.middleware';
 
 dotenv.config();
 
@@ -16,9 +17,9 @@ app.use(express.json());
 app.use(cors());
 connectToDatabase();
 
-app.use('/api', createRouter);
 app.use('/api', getRouter);
 app.use('/api', authRouter);
+app.use('/api', authMiddleware([UserRoles.ADMIN]), createRouter);
 
 app.use(errorHandler);
 
