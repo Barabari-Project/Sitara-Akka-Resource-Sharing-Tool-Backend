@@ -3,7 +3,7 @@ import collectionName from "../constants/collectionName";
 
 export interface ISubData extends Document {
     name: string;
-    datatype: 'string' | 'array';
+    datatype: 'link' | 'array' | 'file';
     link: string;
     data: Types.ObjectId[]; // refs to ResourceItem
     resourceDataEntryId: Types.ObjectId; // back-ref
@@ -13,7 +13,7 @@ const SubDataSchema = new Schema<ISubData>({
     name: { type: String, required: true },
     datatype: {
         type: String,
-        enum: ['string', 'array'],
+        enum: ['link', 'array', 'file'],
         required: true
     },
     link: {

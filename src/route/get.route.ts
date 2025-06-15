@@ -6,6 +6,9 @@ import { ResourceItemModel } from '../models/resourceItem.model';
 import { authMiddleware, UserRoles } from '../middleware/auth.middleware';
 import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
+import { ExpiringMediaModel } from '../models/expiringMedia.model';
+import mongoose from 'mongoose';
+import { getFileFromS3, getS3Link, uploadMediaToWhatsApp } from '../utility/awsS3';
 
 export const getRouter = Router();
 
@@ -52,13 +55,24 @@ getRouter.get('/resource-items/:subDataId', expressAsyncHandler(async (req: Requ
 getRouter.get('/resource-items/link/:id', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), expressAsyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw createHttpError(400, 'Invalid ID');
+    }
+
     const item = await ResourceItemModel.findById(id).select('link');
 
     if (!item) {
         throw createHttpError(404, 'Resource item not found');
     }
 
-    res.status(200).json({ link: item.link });
+    // const media = await ExpiringMediaModel.findById(id);
+    // if( !media ) {
+    const link = getS3Link(item.link);
+    const file = await getFileFromS3(item.link);
+    // }
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${item.name}"`);
+    res.send(file);
 }));
 
 // GET SubData's data array by SubData ID
@@ -71,5 +85,14 @@ getRouter.get('/subdata/link/:id', authMiddleware([UserRoles.ADMIN, UserRoles.US
         throw createHttpError(404, 'SubData not found');
     }
 
-    res.status(200).json({ link: subData.link });
+    // const { stream, contentType, fileName } = await getFileFromS3(subData.link);
+
+    const media = await uploadMediaToWhatsApp(subData.link);
+
+    res.status(200).json({ media });
+
+    // res.setHeader('Content-Type', contentType);
+    // res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+
+    // stream.pipe(res);
 }));

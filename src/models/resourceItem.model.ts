@@ -5,6 +5,7 @@ export interface IResourceItem extends Document {
     name: string;
     link: string;
     type: string;
+    icon: string;
     subDataId: Types.ObjectId; // back-ref to SubData
 }
 
@@ -12,6 +13,7 @@ const ResourceItemSchema = new Schema<IResourceItem>({
     name: { type: String, required: true },
     link: { type: String, required: true },
     type: { type: String, required: true },
+    icon: { type: String, required: true },
     subDataId: { type: Schema.Types.ObjectId, ref: collectionName.subData, required: true }
 });
 
