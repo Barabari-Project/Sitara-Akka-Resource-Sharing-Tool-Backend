@@ -5,5 +5,6 @@ const collectionName = {
     resourceDataEntry: 'resourceDataEntry',
     subData: 'subData',
     resourceItem: 'resourceItem',
+    expiringMedia: 'expiringMedia',
 };
 exports.default = collectionName;

@@ -43,7 +43,7 @@ const SubDataSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
     datatype: {
         type: String,
-        enum: ['string', 'array'],
+        enum: ['link', 'array', 'file'],
         required: true
     },
     link: {

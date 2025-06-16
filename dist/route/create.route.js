@@ -191,6 +191,8 @@ exports.createRouter.delete('/resource-data-entries/:id', (0, express_async_hand
     }
 })));
 // TODO: set file size limit understand multer config
+// understand proper flow of multer
+// what if AWS file deletion didn't succeed
 // Multer config
 const storage = multer_1.default.memoryStorage();
 const upload = (0, multer_1.default)({ storage });
@@ -204,20 +206,28 @@ exports.createRouter.post('/subdata', upload.single('file'), (0, express_async_h
     if (!name || typeof name !== 'string' || name.trim() === '') {
         throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
     }
-    if (!['string', 'array'].includes(datatype)) {
-        throw (0, http_errors_1.default)(400, '"datatype" must be either "string" or "array".');
+    if (!['link', 'array', 'file'].includes(datatype)) {
+        throw (0, http_errors_1.default)(400, '"datatype" must be either "link" or "array" or "file".');
     }
     if (!resourceDataEntryId || !mongoose_1.default.Types.ObjectId.isValid(resourceDataEntryId)) {
         throw (0, http_errors_1.default)(400, 'Valid "resourceDataEntryId" is required.');
     }
     let link = '';
-    if (datatype === 'string') {
+    if (datatype === 'file') {
         if (!file) {
-            throw (0, http_errors_1.default)(400, '"file" must be provided when datatype is "string".');
+            throw (0, http_errors_1.default)(400, '"file" must be provided when datatype is "file".');
         }
     }
-    if (datatype === 'array' && link) {
-        throw (0, http_errors_1.default)(400, '"link" must not be provided when datatype is "array".');
+    else if (file) {
+        throw (0, http_errors_1.default)(400, '"file" must not be provided when datatype is not "file".');
+    }
+    if (datatype === 'link') {
+        if (!link) {
+            throw (0, http_errors_1.default)(400, '"link" must be provided when datatype is "link".');
+        }
+    }
+    else if (link) {
+        throw (0, http_errors_1.default)(400, '"link" must not be provided when datatype is not "link".');
     }
     // Check if parent exists
     const entryExists = yield resourceDataEntry_model_1.ResourceDataEntryModel.exists({ _id: resourceDataEntryId });
@@ -234,7 +244,7 @@ exports.createRouter.post('/subdata', upload.single('file'), (0, express_async_h
         datatype,
         resourceDataEntryId
     };
-    if (datatype === 'string') {
+    if (datatype === 'link') {
         duplicateQuery.link = link.trim();
     }
     const duplicate = yield subdata_model_1.SubDataModel.exists(duplicateQuery);
@@ -253,9 +263,12 @@ exports.createRouter.post('/subdata', upload.single('file'), (0, express_async_h
         if (file) {
             subData.link = `${updatedResourceEntry === null || updatedResourceEntry === void 0 ? void 0 : updatedResourceEntry.resourceId}/${resourceDataEntryId}/${subData._id}`;
         }
+        else if (datatype === 'link') {
+            subData.link = link.trim();
+        }
         yield subData.save({ session });
         // Upload to S3
-        if (file) {
+        if (datatype === 'file') {
             yield (0, awsS3_1.uploadToS3)(file.buffer, subData.link, file.mimetype);
         }
         yield session.commitTransaction();
@@ -271,15 +284,26 @@ exports.createRouter.post('/subdata', upload.single('file'), (0, express_async_h
 })));
 exports.createRouter.put('/subdata/:id', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
-    const { name, datatype, resourceDataEntryId } = req.body;
+    const { name, datatype, resourceDataEntryId, link } = req.body;
     const file = req.file;
     const session = yield mongoose_1.default.startSession();
     session.startTransaction();
     if (!name || typeof name !== 'string' || name.trim() === '') {
         throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
     }
-    if (!['string', 'array'].includes(datatype)) {
-        throw (0, http_errors_1.default)(400, '"datatype" must be either "string" or "array".');
+    if (!['link', 'array', 'file'].includes(datatype)) {
+        throw (0, http_errors_1.default)(400, '"datatype" must be either "link" or "array" or "file".');
+    }
+    if (datatype === 'link') {
+        if (!link) {
+            throw (0, http_errors_1.default)(400, '"link" must be provided when datatype is "link".');
+        }
+    }
+    else if (link) {
+        throw (0, http_errors_1.default)(400, '"link" must not be provided when datatype is not "link".');
+    }
+    if (datatype !== 'file' && file) {
+        throw (0, http_errors_1.default)(400, '"file" must not be provided when datatype is not "file".');
     }
     if (!resourceDataEntryId || !mongoose_1.default.Types.ObjectId.isValid(resourceDataEntryId)) {
         throw (0, http_errors_1.default)(400, 'Valid "resourceDataEntryId" is required.');
@@ -292,9 +316,6 @@ exports.createRouter.put('/subdata/:id', upload.single('file'), (0, express_asyn
     if (!parentEntry) {
         throw (0, http_errors_1.default)(404, 'Parent ResourceDataEntry not found.');
     }
-    if (datatype === 'array' && file) {
-        throw (0, http_errors_1.default)(400, '"file" must not be provided when datatype is "array".');
-    }
     // Check for duplicate on (name, datatype, resourceDataEntryId, link)
     const duplicateQuery = {
         _id: { $ne: id },
@@ -302,7 +323,10 @@ exports.createRouter.put('/subdata/:id', upload.single('file'), (0, express_asyn
         datatype,
         resourceDataEntryId
     };
-    if (datatype === 'string') {
+    if (datatype === 'link') {
+        duplicateQuery.link = link.trim();
+    }
+    else if (datatype === 'file') {
         duplicateQuery.link = `${parentEntry.resourceId}/${resourceDataEntryId}/${id}`;
     }
     const duplicate = yield subdata_model_1.SubDataModel.findOne(duplicateQuery);
@@ -312,12 +336,16 @@ exports.createRouter.put('/subdata/:id', upload.single('file'), (0, express_asyn
     // Update fields
     existingSubData.name = name.trim();
     existingSubData.datatype = datatype;
-    if (datatype === 'string') {
+    if (datatype === 'link' || datatype === 'file') {
         if (existingSubData.data.length > 0) {
             throw (0, http_errors_1.default)(400, 'Cannot update: linked ResourceItem still exists.');
         }
-        const newLink = `${parentEntry.resourceId}/${resourceDataEntryId}/${id}`;
-        existingSubData.link = newLink;
+        if (datatype === 'link') {
+            existingSubData.link = link.trim();
+        }
+        else if (datatype === 'file') {
+            existingSubData.link = `${parentEntry.resourceId}/${resourceDataEntryId}/${id}`;
+        }
     }
     else {
         existingSubData.link = '';
@@ -372,17 +400,23 @@ exports.createRouter.delete('/subdata/:id', (0, express_async_handler_1.default)
 exports.createRouter.post('/resource-items', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const session = yield mongoose_1.default.startSession();
     session.startTransaction();
-    const { name, type, subDataId } = req.body;
+    const { name, type, subDataId, link, icon } = req.body;
     const file = req.file;
     // Validation: Required fields
     if (!name || typeof name !== 'string' || name.trim() === '') {
         throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
     }
-    if (!file) {
-        throw (0, http_errors_1.default)(400, '"file" is required and cannot be empty.');
+    if (!icon || typeof icon !== 'string' || icon.trim() === '') {
+        throw (0, http_errors_1.default)(400, '"icon" is required and cannot be empty.');
     }
     if (!type || typeof type !== 'string' || type.trim() === '') {
         throw (0, http_errors_1.default)(400, '"type" is required and cannot be empty.');
+    }
+    if (type === 'file' && !file) {
+        throw (0, http_errors_1.default)(400, '"file" is required and cannot be empty.');
+    }
+    if (type === 'link' && !link) {
+        throw (0, http_errors_1.default)(400, '"link" is required and cannot be empty.');
     }
     if (!subDataId || !mongoose_1.default.Types.ObjectId.isValid(subDataId)) {
         throw (0, http_errors_1.default)(400, 'Valid "subDataId" is required.');
@@ -396,6 +430,7 @@ exports.createRouter.post('/resource-items', upload.single('file'), (0, express_
     const duplicate = yield resourceItem_model_1.ResourceItemModel.exists({
         name: name.trim(),
         type: type.trim(),
+        icon: icon.trim(),
         subDataId
     });
     if (duplicate) {
@@ -406,6 +441,7 @@ exports.createRouter.post('/resource-items', upload.single('file'), (0, express_
         const resourceItem = new resourceItem_model_1.ResourceItemModel({
             name: name.trim(),
             type: type.trim(),
+            icon: icon.trim(),
             subDataId
         });
         const updatedSubData = yield subdata_model_1.SubDataModel.findByIdAndUpdate(subDataId, { $push: { data: resourceItem._id } }, { session }).populate({
@@ -416,9 +452,9 @@ exports.createRouter.post('/resource-items', upload.single('file'), (0, express_
             throw (0, http_errors_1.default)(404, 'Failed to populate resourceDataEntryId');
         }
         const resourceDataEntry = updatedSubData.resourceDataEntryId;
-        resourceItem.link = `${resourceDataEntry.resourceId}/${resourceDataEntry._id}/${updatedSubData._id}/${resourceItem._id}`;
+        resourceItem.link = type === 'file' ? `${resourceDataEntry.resourceId}/${resourceDataEntry._id}/${updatedSubData._id}/${resourceItem._id}` : link;
         yield resourceItem.save({ session });
-        if (file) {
+        if (type === 'file') {
             yield (0, awsS3_1.uploadToS3)(file.buffer, resourceItem.link, file.mimetype);
         }
         yield session.commitTransaction();
@@ -434,7 +470,7 @@ exports.createRouter.post('/resource-items', upload.single('file'), (0, express_
 })));
 exports.createRouter.put('/resource-items/:id', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
-    const { name, type, subDataId } = req.body;
+    const { name, type, subDataId, link, icon } = req.body;
     const file = req.file;
     const session = yield mongoose_1.default.startSession();
     session.startTransaction();
@@ -442,8 +478,14 @@ exports.createRouter.put('/resource-items/:id', upload.single('file'), (0, expre
     if (!name || typeof name !== 'string' || name.trim() === '') {
         throw (0, http_errors_1.default)(400, '"name" is required and cannot be empty.');
     }
+    if (!icon || typeof icon !== 'string' || icon.trim() === '') {
+        throw (0, http_errors_1.default)(400, '"icon" is required and cannot be empty.');
+    }
     if (!type || typeof type !== 'string' || type.trim() === '') {
         throw (0, http_errors_1.default)(400, '"type" is required and cannot be empty.');
+    }
+    if (type === 'link' && !link) {
+        throw (0, http_errors_1.default)(400, '"link" is required and cannot be empty.');
     }
     if (!subDataId || !mongoose_1.default.Types.ObjectId.isValid(subDataId)) {
         throw (0, http_errors_1.default)(400, 'Valid "subDataId" is required.');
@@ -465,6 +507,7 @@ exports.createRouter.put('/resource-items/:id', upload.single('file'), (0, expre
             _id: { $ne: id },
             name: name.trim(),
             type: type.trim(),
+            icon: icon.trim(),
             subDataId
         });
         if (duplicate) {
@@ -475,9 +518,9 @@ exports.createRouter.put('/resource-items/:id', upload.single('file'), (0, expre
         existingItem.type = type.trim();
         // Construct new S3 link and upload if file provided
         const resourceDataEntry = subData.resourceDataEntryId;
-        existingItem.link = `${resourceDataEntry.resourceId}/${resourceDataEntry._id}/${subData._id}/${id}`;
+        existingItem.link = type === 'file' ? `${resourceDataEntry.resourceId}/${resourceDataEntry._id}/${subData._id}/${id}` : link;
         yield existingItem.save({ session });
-        if (file) {
+        if (type === 'file' && file) {
             yield (0, awsS3_1.uploadToS3)(file.buffer, existingItem.link, file.mimetype);
         }
         yield session.commitTransaction();

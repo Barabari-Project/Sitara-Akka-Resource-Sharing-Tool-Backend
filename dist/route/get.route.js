@@ -21,6 +21,8 @@ const resourceItem_model_1 = require("../models/resourceItem.model");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const http_errors_1 = __importDefault(require("http-errors"));
+const mongoose_1 = __importDefault(require("mongoose"));
+const awsS3_1 = require("../utility/awsS3");
 exports.getRouter = (0, express_1.Router)();
 // GET unique languages
 exports.getRouter.get('/resources/languages', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -56,11 +58,21 @@ exports.getRouter.get('/resource-items/:subDataId', (0, express_async_handler_1.
 // GET resource item link by ID
 exports.getRouter.get('/resource-items/link/:id', (0, auth_middleware_1.authMiddleware)([auth_middleware_1.UserRoles.ADMIN, auth_middleware_1.UserRoles.USER]), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
+    if (!mongoose_1.default.Types.ObjectId.isValid(id)) {
+        throw (0, http_errors_1.default)(400, 'Invalid ID');
+    }
     const item = yield resourceItem_model_1.ResourceItemModel.findById(id).select('link');
     if (!item) {
         throw (0, http_errors_1.default)(404, 'Resource item not found');
     }
-    res.status(200).json({ link: item.link });
+    // const media = await ExpiringMediaModel.findById(id);
+    // if( !media ) {
+    const link = (0, awsS3_1.getS3Link)(item.link);
+    const file = yield (0, awsS3_1.getFileFromS3)(item.link);
+    // }
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${item.name}"`);
+    res.send(file);
 })));
 // GET SubData's data array by SubData ID
 exports.getRouter.get('/subdata/link/:id', (0, auth_middleware_1.authMiddleware)([auth_middleware_1.UserRoles.ADMIN, auth_middleware_1.UserRoles.USER]), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -69,5 +81,10 @@ exports.getRouter.get('/subdata/link/:id', (0, auth_middleware_1.authMiddleware)
     if (!subData || !subData.link) {
         throw (0, http_errors_1.default)(404, 'SubData not found');
     }
-    res.status(200).json({ link: subData.link });
+    // const { stream, contentType, fileName } = await getFileFromS3(subData.link);
+    const media = yield (0, awsS3_1.uploadMediaToWhatsApp)(subData.link);
+    res.status(200).json({ media });
+    // res.setHeader('Content-Type', contentType);
+    // res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    // stream.pipe(res);
 })));

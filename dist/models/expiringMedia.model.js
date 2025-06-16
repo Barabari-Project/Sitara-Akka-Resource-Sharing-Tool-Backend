@@ -36,14 +36,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ResourceItemModel = void 0;
+exports.ExpiringMediaModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const collectionName_1 = __importDefault(require("../constants/collectionName"));
-const ResourceItemSchema = new mongoose_1.Schema({
-    name: { type: String, required: true },
-    link: { type: String, required: true },
-    type: { type: String, required: true },
-    icon: { type: String, required: true },
-    subDataId: { type: mongoose_1.Schema.Types.ObjectId, ref: collectionName_1.default.subData, required: true }
+// Define schema
+const ExpiringMediaSchema = new mongoose_1.Schema({
+    mediaId: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now, expires: '28d' } // TTL index here
 });
-exports.ResourceItemModel = mongoose_1.default.model(collectionName_1.default.resourceItem, ResourceItemSchema, collectionName_1.default.resourceItem);
+// Create model
+exports.ExpiringMediaModel = mongoose_1.default.model(collectionName_1.default.expiringMedia, ExpiringMediaSchema, collectionName_1.default.expiringMedia);
