@@ -79,24 +79,24 @@ export const uploadMediaToWhatsApp = async (key: string) => {
 
   const buffer = await getBufferFromStream(stream);
 
-  const formData = new FormData();
-  formData.append('file', buffer, {
-    filename,
-    contentType: mimeType
-  });
-  formData.append('messaging_product', 'whatsapp');
-  formData.append('type', mimeType.split('/')[0]); // "image", "video", etc.
+  // const formData = new FormData();
+  // formData.append('file', buffer, {
+  //   filename,
+  //   contentType: mimeType
+  // });
+  // formData.append('messaging_product', 'whatsapp');
+  // formData.append('type', mimeType.split('/')[0]); // "image", "video", etc.
 
-  const response = await axios.post(
-    `https://graph.facebook.com/v19.0/${PHONE_NUMBER_ID}/media`,
-    formData,
-    {
-      headers: {
-        ...formData.getHeaders(),
-        Authorization: `Bearer ${WHATSAPP_TOKEN}`
-      }
-    }
-  );
+  // const response = await axios.post(
+  //   `https://graph.facebook.com/v19.0/${PHONE_NUMBER_ID}/media`,
+  //   formData,
+  //   {
+  //     headers: {
+  //       ...formData.getHeaders(),
+  //       Authorization: `Bearer ${WHATSAPP_TOKEN}`
+  //     }
+  //   }
+  // );
 
-  return response.data.id; // ✅ media_id
+  // return response.data.id; // ✅ media_id
 };
