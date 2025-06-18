@@ -14,9 +14,29 @@ const app = express();
 
 
 app.use(express.json());
-app.use(cors({
-    origin: '*',
-}));
+const allowedOrigins = '*';
+
+//   process.env.NODE_ENV === 'production'
+//     ? '*' // PROD ENV
+//     : '*'; // Allow all origins in DEV ENV
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) => {
+    if (!origin || allowedOrigins === '*') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // Allow cookies and Authorization headers, if any.
+};
+
+app.use(cors(corsOptions));
+
+app.options('*', cors(corsOptions));
+
 connectToDatabase();
 app.get('/gh', (req, res) => {
     res.send('Hello World');
