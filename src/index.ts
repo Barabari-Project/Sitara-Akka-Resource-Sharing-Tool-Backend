@@ -30,7 +30,7 @@ const corsOptions = {
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true // Allow cookies and Authorization headers, if any.
+//   credentials: true // Allow cookies and Authorization headers, if any.
 };
 
 app.use(cors(corsOptions));
@@ -38,12 +38,10 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 connectToDatabase();
-app.get('/gh', (req, res) => {
-    res.send('Hello World');
-});
-app.use('/api', getRouter);
-app.use('/api', authRouter);
-app.use('/api', authMiddleware([UserRoles.ADMIN]), createRouter);
+
+app.use('/sitara/api', getRouter);
+app.use('/sitara/api', authRouter);
+app.use('/sitara/api', authMiddleware([UserRoles.ADMIN]), createRouter);
 
 app.use(errorHandler);
 
