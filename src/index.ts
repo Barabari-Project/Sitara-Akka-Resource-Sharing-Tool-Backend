@@ -18,7 +18,9 @@ app.use(cors({
     origin: '*',
 }));
 connectToDatabase();
-
+app.get('/gh', (req, res) => {
+    res.send('Hello World');
+});
 app.use('/api', getRouter);
 app.use('/api', authRouter);
 app.use('/api', authMiddleware([UserRoles.ADMIN]), createRouter);

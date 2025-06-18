@@ -19,6 +19,9 @@ app.use((0, cors_1.default)({
     origin: '*',
 }));
 (0, database_1.connectToDatabase)();
+app.get('/gh', (req, res) => {
+    res.send('Hello World');
+});
 app.use('/api', get_route_1.getRouter);
 app.use('/api', auth_route_1.authRouter);
 app.use('/api', (0, auth_middleware_1.authMiddleware)([auth_middleware_1.UserRoles.ADMIN]), create_route_1.createRouter);
