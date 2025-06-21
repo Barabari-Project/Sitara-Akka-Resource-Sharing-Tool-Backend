@@ -243,7 +243,7 @@ createRouter.post('/subdata', upload.single('file'), expressAsyncHandler(async (
     session.startTransaction();
 
 
-    const { name, datatype, resourceDataEntryId } = req.body;
+    const { name, datatype, resourceDataEntryId,link } = req.body;
     const file = (req as any).file;
 
     // Basic validation
@@ -258,8 +258,6 @@ createRouter.post('/subdata', upload.single('file'), expressAsyncHandler(async (
     if (!resourceDataEntryId || !mongoose.Types.ObjectId.isValid(resourceDataEntryId)) {
         throw createHttpError(400, 'Valid "resourceDataEntryId" is required.');
     }
-
-    let link = '';
 
     if (datatype === 'file') {
         if (!file) {

@@ -200,7 +200,7 @@ const upload = (0, multer_1.default)({ storage });
 exports.createRouter.post('/subdata', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const session = yield mongoose_1.default.startSession();
     session.startTransaction();
-    const { name, datatype, resourceDataEntryId } = req.body;
+    const { name, datatype, resourceDataEntryId, link } = req.body;
     const file = req.file;
     // Basic validation
     if (!name || typeof name !== 'string' || name.trim() === '') {
@@ -212,7 +212,6 @@ exports.createRouter.post('/subdata', upload.single('file'), (0, express_async_h
     if (!resourceDataEntryId || !mongoose_1.default.Types.ObjectId.isValid(resourceDataEntryId)) {
         throw (0, http_errors_1.default)(400, 'Valid "resourceDataEntryId" is required.');
     }
-    let link = '';
     if (datatype === 'file') {
         if (!file) {
             throw (0, http_errors_1.default)(400, '"file" must be provided when datatype is "file".');
