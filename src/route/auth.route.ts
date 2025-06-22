@@ -33,7 +33,10 @@ authRouter.post('/register', expressAsyncHandler(async (req: Request, res: Respo
     });
 
     await user.save();
-    res.status(201).json({ message: 'User registered', user });
+    const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
+        expiresIn: '7d'
+    });
+    res.status(201).json({ message: 'User registered', user, token });
 
 }));
 
@@ -55,6 +58,6 @@ authRouter.post('/login', expressAsyncHandler(async (req: Request, res: Response
         expiresIn: '7d'
     });
 
-    res.status(200).json({ message: 'Login successful', token });
+    res.status(200).json({ message: 'Login successful', token,user });
 
 }));

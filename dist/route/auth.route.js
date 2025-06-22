@@ -41,7 +41,10 @@ exports.authRouter.post('/register', (0, express_async_handler_1.default)((req, 
         std: std === null || std === void 0 ? void 0 : std.trim()
     });
     yield user.save();
-    res.status(201).json({ message: 'User registered', user });
+    const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET, {
+        expiresIn: '7d'
+    });
+    res.status(201).json({ message: 'User registered', user, token });
 })));
 // POST /login
 exports.authRouter.post('/login', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -56,5 +59,5 @@ exports.authRouter.post('/login', (0, express_async_handler_1.default)((req, res
     const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET, {
         expiresIn: '7d'
     });
-    res.status(200).json({ message: 'Login successful', token });
+    res.status(200).json({ message: 'Login successful', token, user });
 })));
