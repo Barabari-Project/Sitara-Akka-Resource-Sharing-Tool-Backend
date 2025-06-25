@@ -1,14 +1,15 @@
-import { Router, Request, Response } from 'express';
-import { ResourceModel } from '../models/resource.model';
-import { ResourceDataEntryModel } from '../models/resourceDataEntry.model';
-import { SubDataModel } from '../models/subdata.model';
-import { ResourceItemModel } from '../models/resourceItem.model';
-import { authMiddleware, UserRoles } from '../middleware/auth.middleware';
+import { Request, Response, Router } from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
-import { ExpiringMediaModel } from '../models/expiringMedia.model';
 import mongoose from 'mongoose';
-import { getFileFromS3, getS3Link, uploadMediaToWhatsApp } from '../utility/awsS3';
+import { authMiddleware, UserRoles } from '../middleware/auth.middleware';
+import { ExpiringMediaModel } from '../models/expiringMedia.model';
+import { ResourceModel } from '../models/resource.model';
+import { ResourceDataEntryModel } from '../models/resourceDataEntry.model';
+import { ResourceItemModel } from '../models/resourceItem.model';
+import { SubDataModel } from '../models/subdata.model';
+import { sendMediaToWhatsApp } from '../utility/wp';
+import { DropDownModel,DropDownType } from '../models/dropDown.model';
 
 export const getRouter = Router();
 
@@ -40,13 +41,23 @@ getRouter.get('/resource-data-entries/:resourceId', expressAsyncHandler(async (r
 // GET all subdata entries for a given resourceDataEntryId
 getRouter.get('/subdata/:resourceDataEntryId', expressAsyncHandler(async (req: Request, res: Response) => {
     const { resourceDataEntryId } = req.params;
-    const subData = await SubDataModel.find({ resourceDataEntryId }).select('-data -__v -resourceDataEntryId -link');
+    const subData = await SubDataModel.find({ resourceDataEntryId }).select('-data -__v -resourceDataEntryId ').lean();
+    for (const sub of subData) {
+        if (sub.datatype === 'file') {
+            sub.link = '';
+        }
+    }
     res.status(200).json({ subData });
 }));
 
 getRouter.get('/resource-items/:subDataId', expressAsyncHandler(async (req: Request, res: Response) => {
     const { subDataId } = req.params;
-    const items = await ResourceItemModel.find({ subDataId }).select('-subDataId -__v -link');
+    const items = await ResourceItemModel.find({ subDataId }).select('-subDataId -__v').lean();
+    for (const item of items) {
+        if (item.type === 'file') {
+            item.link = '';
+        }
+    }
     res.status(200).json({ items });
 }));
 
@@ -59,40 +70,51 @@ getRouter.get('/resource-items/link/:id', authMiddleware([UserRoles.ADMIN, UserR
         throw createHttpError(400, 'Invalid ID');
     }
 
-    const item = await ResourceItemModel.findById(id).select('link');
+    const item = await ResourceItemModel.findById(id).select('type link');
 
-    if (!item) {
+    if (!item || item.type!=='file' || !item.link) {
         throw createHttpError(404, 'Resource item not found');
     }
 
-    // const media = await ExpiringMediaModel.findById(id);
-    // if( !media ) {
-    const link = getS3Link(item.link);
-    const file = await getFileFromS3(item.link);
-    // }
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${item.name}"`);
-    res.send(file);
+ 
+    const media = await ExpiringMediaModel.findById(id);
+    if (!media) {
+        throw createHttpError(404, 'Internal server error. Please try again later.');
+    } else {
+        await sendMediaToWhatsApp(media.mediaId, (req as any).phoneNumber, media.mimeType);
+    }
+    res.status(200).json({ message: 'Media sent successfully' });
 }));
 
 // GET SubData's data array by SubData ID
 getRouter.get('/subdata/link/:id', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), expressAsyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    const subData = await SubDataModel.findById(id).select('link');
+    const subData = await SubDataModel.findById(id).select('datatype link');
 
-    if (!subData || !subData.link) {
+    if (!subData || subData.datatype!=='file' || !subData.link) {
         throw createHttpError(404, 'SubData not found');
     }
 
-    // const { stream, contentType, fileName } = await getFileFromS3(subData.link);
+    const media = await ExpiringMediaModel.findById(id);
 
-    const media = await uploadMediaToWhatsApp(subData.link);
+    if (!media) {
+        throw createHttpError(404, 'Internal server error. Please try again later.');
+    } else {
+        await sendMediaToWhatsApp(media.mediaId, (req as any).phoneNumber, media.mimeType);
+    }
+    res.status(200).json({ message: 'Media sent successfully' });
+}));
 
-    res.status(200).json({ media });
 
-    // res.setHeader('Content-Type', contentType);
-    // res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-
-    // stream.pipe(res);
+getRouter.get('/dropdown-data', expressAsyncHandler(async (req: Request, res: Response) => {
+    const { type } = req.query;
+    if (!type || typeof type !== 'string') {
+        throw createHttpError(400, 'Query param "type" is required and must be a string.');
+    }
+    if (!Object.values(DropDownType).includes(type as DropDownType)) {
+        throw createHttpError(400, 'Invalid dropdown type');
+    }
+    const dropdownData = await DropDownModel.find({ type }).select('type value');
+    res.status(200).json({ dropdownData });
 }));

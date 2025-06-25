@@ -17,23 +17,17 @@ authRouter.post('/register', expressAsyncHandler(async (req: Request, res: Respo
         throw createHttpError(400, 'Phone number is required');
     }
 
-    const existingUser = await UserModel.findOne({ phoneNumber });
-    if (existingUser) {
-        throw createHttpError(409, 'User with this phone number already exists');
-    }
-
-    const user = new UserModel({
+    const user = await UserModel.findOneAndUpdate({ phoneNumber }, {
         phoneNumber: phoneNumber.trim(),
         firstName: firstName?.trim(),
         lastName: lastName?.trim(),
-        age,
-        role: UserRoles.USER,
+        age: age,
         gender: gender?.trim(),
-        std: std?.trim()
-    });
+        std: std?.trim(),
+        role: UserRoles.USER
+    }, { new: true });
 
-    await user.save();
-    const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
+    const token = jwt.sign({ phoneNumber: user?.phoneNumber, role: user?.role }, process.env.JWT_SECRET!, {
         expiresIn: '7d'
     });
     res.status(201).json({ message: 'User registered', user, token });
@@ -49,15 +43,18 @@ authRouter.post('/login', expressAsyncHandler(async (req: Request, res: Response
         throw createHttpError(400, 'Phone number is required');
     }
 
-    const user = await UserModel.findOne({ phoneNumber });
+    let user = await UserModel.findOne({ phoneNumber });
+    let isAlreadyPresent = true;
+
     if (!user) {
-        throw createHttpError(404, 'User not found');
+        user = await UserModel.create({ phoneNumber });
+        isAlreadyPresent = false;
     }
 
     const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
         expiresIn: '7d'
     });
 
-    res.status(200).json({ message: 'Login successful', token,user });
+    res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
 
 }));

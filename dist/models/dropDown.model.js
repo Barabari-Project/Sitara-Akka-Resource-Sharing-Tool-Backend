@@ -36,14 +36,32 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ExpiringMediaModel = void 0;
+exports.DropDownModel = exports.DropDownType = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const collectionName_1 = __importDefault(require("../constants/collectionName"));
-// Define schema
-const ExpiringMediaSchema = new mongoose_1.Schema({
-    mediaId: { type: String, required: true },
-    mimeType: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now, expires: '28d' } // TTL index here
-});
-// Create model
-exports.ExpiringMediaModel = mongoose_1.default.model(collectionName_1.default.expiringMedia, ExpiringMediaSchema, collectionName_1.default.expiringMedia);
+var DropDownType;
+(function (DropDownType) {
+    DropDownType["SUBJECT"] = "subject";
+    DropDownType["CLASS"] = "class";
+    DropDownType["LANGUAGE"] = "language";
+})(DropDownType || (exports.DropDownType = DropDownType = {}));
+const dropDownDataSchema = new mongoose_1.Schema({
+    type: {
+        type: String,
+        enum: {
+            values: Object.values(DropDownType),
+            message: 'Invalid config name'
+        },
+        required: [true, 'Name is required'],
+        unique: true //
+    },
+    value: {
+        type: [String],
+        default: ['Other'],
+        validate: {
+            validator: (arr) => arr.every(v => typeof v === 'string'),
+            message: 'All values must be strings'
+        }
+    }
+}, { timestamps: true });
+exports.DropDownModel = mongoose_1.default.model(collectionName_1.default.dropDownData, dropDownDataSchema, collectionName_1.default.dropDownData);

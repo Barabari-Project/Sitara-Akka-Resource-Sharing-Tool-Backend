@@ -6,5 +6,6 @@ const collectionName = {
     subData: 'subData',
     resourceItem: 'resourceItem',
     expiringMedia: 'expiringMedia',
+    dropDownData: 'dropDownMetaData'
 };
 exports.default = collectionName;

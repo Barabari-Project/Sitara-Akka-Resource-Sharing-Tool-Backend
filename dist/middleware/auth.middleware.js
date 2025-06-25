@@ -31,7 +31,8 @@ const authMiddleware = (allowedRoles) => (0, express_async_handler_1.default)((r
         if (!allowedRoles.includes(decoded.role)) {
             throw (0, http_errors_1.default)(403, 'Unauthorized');
         }
-        req.user = decoded; // attach user info
+        req.phoneNumber = decoded.phoneNumber; // attach user info
+        req.role = decoded.role;
         next();
     }
     catch (err) {

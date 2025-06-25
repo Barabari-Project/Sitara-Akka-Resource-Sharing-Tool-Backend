@@ -19,9 +19,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadMediaToWhatsApp = exports.getFileFromS3 = exports.getS3Link = exports.deleteFromS3 = exports.uploadToS3 = void 0;
+exports.uploadFileToWhatsApp = exports.getFileFromS3 = exports.getS3Link = exports.deleteFromS3 = exports.uploadToS3 = void 0;
 const client_s3_1 = require("@aws-sdk/client-s3");
+const axios_1 = __importDefault(require("axios"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const expiringMedia_model_1 = require("../models/expiringMedia.model");
+const wpEndPoint_1 = require("../constants/wpEndPoint");
 dotenv_1.default.config();
 // AWS S3 Config
 const s3 = new client_s3_1.S3Client({
@@ -70,8 +73,25 @@ const getFileFromS3 = (key) => __awaiter(void 0, void 0, void 0, function* () {
     };
 });
 exports.getFileFromS3 = getFileFromS3;
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+const uploadFileToWhatsApp = (key) => __awaiter(void 0, void 0, void 0, function* () {
+    const s3Response = yield s3.send(new client_s3_1.GetObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: key
+    }));
+    const stream = s3Response.Body;
+    const mimeType = s3Response.ContentType || 'application/octet-stream';
+    const buffer = yield getBufferFromStream(stream);
+    const formData = new FormData();
+    //   formData.append('file', buffer, {
+    //       contentType: mimeType
+    //   });
+    const response = yield axios_1.default.post(`${process.env.WP_SERVER_BASE_URL}/${wpEndPoint_1.wpEndPoint.uploadFile}`, formData);
+    yield expiringMedia_model_1.ExpiringMediaModel.create({
+        mediaId: response.data.id,
+        mimeType,
+    });
+});
+exports.uploadFileToWhatsApp = uploadFileToWhatsApp;
 const getBufferFromStream = (stream) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, stream_1, stream_1_1;
     var _b, e_1, _c, _d;
@@ -93,32 +113,3 @@ const getBufferFromStream = (stream) => __awaiter(void 0, void 0, void 0, functi
     }
     return Buffer.concat(chunks);
 });
-const uploadMediaToWhatsApp = (key) => __awaiter(void 0, void 0, void 0, function* () {
-    const s3Response = yield s3.send(new client_s3_1.GetObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: key
-    }));
-    const stream = s3Response.Body;
-    const mimeType = s3Response.ContentType || 'application/octet-stream';
-    const filename = key.split('/').pop() || 'file';
-    const buffer = yield getBufferFromStream(stream);
-    // const formData = new FormData();
-    // formData.append('file', buffer, {
-    //   filename,
-    //   contentType: mimeType
-    // });
-    // formData.append('messaging_product', 'whatsapp');
-    // formData.append('type', mimeType.split('/')[0]); // "image", "video", etc.
-    // const response = await axios.post(
-    //   `https://graph.facebook.com/v19.0/${PHONE_NUMBER_ID}/media`,
-    //   formData,
-    //   {
-    //     headers: {
-    //       ...formData.getHeaders(),
-    //       Authorization: `Bearer ${WHATSAPP_TOKEN}`
-    //     }
-    //   }
-    // );
-    // return response.data.id; // ✅ media_id
-});
-exports.uploadMediaToWhatsApp = uploadMediaToWhatsApp;

@@ -27,21 +27,16 @@ exports.authRouter.post('/register', (0, express_async_handler_1.default)((req, 
     if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim() === '' || phoneNumber.trim().length !== 10) {
         throw (0, http_errors_1.default)(400, 'Phone number is required');
     }
-    const existingUser = yield user_model_1.UserModel.findOne({ phoneNumber });
-    if (existingUser) {
-        throw (0, http_errors_1.default)(409, 'User with this phone number already exists');
-    }
-    const user = new user_model_1.UserModel({
+    const user = yield user_model_1.UserModel.findOneAndUpdate({ phoneNumber }, {
         phoneNumber: phoneNumber.trim(),
         firstName: firstName === null || firstName === void 0 ? void 0 : firstName.trim(),
         lastName: lastName === null || lastName === void 0 ? void 0 : lastName.trim(),
-        age,
-        role: auth_middleware_1.UserRoles.USER,
+        age: age,
         gender: gender === null || gender === void 0 ? void 0 : gender.trim(),
-        std: std === null || std === void 0 ? void 0 : std.trim()
-    });
-    yield user.save();
-    const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET, {
+        std: std === null || std === void 0 ? void 0 : std.trim(),
+        role: auth_middleware_1.UserRoles.USER
+    }, { new: true });
+    const token = jsonwebtoken_1.default.sign({ phoneNumber: user === null || user === void 0 ? void 0 : user.phoneNumber, role: user === null || user === void 0 ? void 0 : user.role }, process.env.JWT_SECRET, {
         expiresIn: '7d'
     });
     res.status(201).json({ message: 'User registered', user, token });
@@ -52,12 +47,14 @@ exports.authRouter.post('/login', (0, express_async_handler_1.default)((req, res
     if (!phoneNumber || typeof phoneNumber !== 'string') {
         throw (0, http_errors_1.default)(400, 'Phone number is required');
     }
-    const user = yield user_model_1.UserModel.findOne({ phoneNumber });
+    let user = yield user_model_1.UserModel.findOne({ phoneNumber });
+    let isAlreadyPresent = true;
     if (!user) {
-        throw (0, http_errors_1.default)(404, 'User not found');
+        user = yield user_model_1.UserModel.create({ phoneNumber });
+        isAlreadyPresent = false;
     }
     const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET, {
         expiresIn: '7d'
     });
-    res.status(200).json({ message: 'Login successful', token, user });
+    res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
 })));

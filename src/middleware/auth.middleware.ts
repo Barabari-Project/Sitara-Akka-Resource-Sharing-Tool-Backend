@@ -19,7 +19,8 @@ export const authMiddleware = (allowedRoles: UserRoles[]) => expressAsyncHandler
         if (!allowedRoles.includes(decoded.role)) {
             throw createHttpError(403, 'Unauthorized');
         }
-        (req as any).user = decoded; // attach user info
+        (req as any).phoneNumber = decoded.phoneNumber; // attach user info
+        (req as any).role = decoded.role;
         next();
     } catch (err) {
         throw createHttpError(401, 'Invalid token');

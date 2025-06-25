@@ -2,6 +2,8 @@ import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } fro
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { Readable } from 'node:stream';
+import { ExpiringMediaModel } from '../models/expiringMedia.model';
+import { wpEndPoint } from '../constants/wpEndPoint';
 dotenv.config();
 
 // AWS S3 Config
@@ -55,48 +57,41 @@ export const getFileFromS3 = async (key: string) => {
       };
 };
 
+export const uploadFileToWhatsApp = async (key: string) => {
 
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN!;
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
-
-const getBufferFromStream = async (stream: Readable): Promise<Buffer> => {
-  const chunks: any[] = [];
-  for await (const chunk of stream) {
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks);
-};
-
-export const uploadMediaToWhatsApp = async (key: string) => {
   const s3Response = await s3.send(new GetObjectCommand({
-    Bucket: process.env.AWS_BUCKET_NAME!,
-    Key: key
+      Bucket: process.env.AWS_BUCKET_NAME!,
+      Key: key
   }));
 
   const stream = s3Response.Body as Readable;
   const mimeType = s3Response.ContentType || 'application/octet-stream';
-  const filename = key.split('/').pop() || 'file';
 
   const buffer = await getBufferFromStream(stream);
 
-  // const formData = new FormData();
-  // formData.append('file', buffer, {
-  //   filename,
-  //   contentType: mimeType
-  // });
-  // formData.append('messaging_product', 'whatsapp');
-  // formData.append('type', mimeType.split('/')[0]); // "image", "video", etc.
+  const formData = new FormData();
+//   formData.append('file', buffer, {
+//       contentType: mimeType
+//   });
 
-  // const response = await axios.post(
-  //   `https://graph.facebook.com/v19.0/${PHONE_NUMBER_ID}/media`,
-  //   formData,
-  //   {
-  //     headers: {
-  //       ...formData.getHeaders(),
-  //       Authorization: `Bearer ${WHATSAPP_TOKEN}`
-  //     }
-  //   }
-  // );
+  const response = await axios.post(`${process.env.WP_SERVER_BASE_URL}/${wpEndPoint.uploadFile}`, formData,
+    //   {
+    //       headers: {
+    //           ...formData.getHeaders(),
+    //       }
+    //   }
+  );
 
-  // return response.data.id; // ✅ media_id
+  await ExpiringMediaModel.create({
+      mediaId: response.data.id,
+      mimeType,
+  });
+}
+
+const getBufferFromStream = async (stream: Readable): Promise<Buffer> => {
+  const chunks: any[] = [];
+  for await (const chunk of stream) {
+      chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 };
