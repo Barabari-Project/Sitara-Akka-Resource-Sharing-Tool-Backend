@@ -58,3 +58,20 @@ exports.authRouter.post('/login', (0, express_async_handler_1.default)((req, res
     });
     res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
 })));
+// POST /login
+exports.authRouter.post('/admin/login', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber || typeof phoneNumber !== 'string') {
+        throw (0, http_errors_1.default)(400, 'Phone number is required');
+    }
+    let user = yield user_model_1.UserModel.findOne({ phoneNumber, role: auth_middleware_1.UserRoles.ADMIN });
+    let isAlreadyPresent = true;
+    if (!user) {
+        user = yield user_model_1.UserModel.create({ phoneNumber });
+        isAlreadyPresent = false;
+    }
+    const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET, {
+        expiresIn: '7d'
+    });
+    res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
+})));
