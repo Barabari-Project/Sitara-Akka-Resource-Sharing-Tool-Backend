@@ -73,14 +73,13 @@ authRouter.post('/admin/login', expressAsyncHandler(async (req: Request, res: Re
     let isAlreadyPresent = true;
 
     if (!user) {
-        user = await UserModel.create({ phoneNumber });
-        isAlreadyPresent = false;
+        throw createHttpError(404, 'User not found');
     }
 
     const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
         expiresIn: '7d'
     });
 
-    res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
+    res.status(200).json({ message: 'Login successful', token, user });
 
 }));
