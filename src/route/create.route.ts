@@ -201,20 +201,20 @@ createRouter.delete('/resource-data-entries/:id', expressAsyncHandler(async (req
         throw createHttpError(404, 'ResourceDataEntry not found.');
     }
 
-    if (entry.data.length > 0) {
-        throw createHttpError(400, 'Cannot delete: linked SubData still exists.');
-    }
+    // if (entry.data.length > 0) {
+    //     throw createHttpError(400, 'Cannot delete: linked SubData still exists.');
+    // }
 
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
         // Remove ref from parent Resource
-        await ResourceModel.findByIdAndUpdate(
-            entry.resourceId,
-            { $pull: { data: entry._id } },
-            { session }
-        );
+        // await ResourceModel.findByIdAndUpdate(
+        //     entry.resourceId,
+        //     { $pull: { data: entry._id } },
+        //     { session }
+        // );
 
         await ResourceDataEntryModel.findByIdAndDelete(entry._id, { session });
 
@@ -228,7 +228,6 @@ createRouter.delete('/resource-data-entries/:id', expressAsyncHandler(async (req
     }
 }));
 
-
 // TODO: set file size limit understand multer config
 // understand proper flow of multer
 // what if AWS file deletion didn't succeed
@@ -237,13 +236,65 @@ createRouter.delete('/resource-data-entries/:id', expressAsyncHandler(async (req
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
+createRouter.post(
+    '/resources/data/v1',
+    upload.single('file'), // Handle file upload if present
+    expressAsyncHandler(async (req: Request, res: Response) => {
+        const { type, name, link, resourceId } = req.body;
+
+        if (!type || !name || !resourceId) {
+          throw createHttpError(400, 'Fields "type", "name", and "resourceId" are required.');
+        }
+    
+        if (!mongoose.Types.ObjectId.isValid(resourceId)) {
+          throw createHttpError(400, 'Invalid "resourceId".');
+        }
+    
+        // Step 1: Validate resourceId
+        const resource = await ResourceModel.findById(resourceId);
+        if (!resource) {
+          throw createHttpError(404, 'Resource not found.');
+        }
+
+         // Step 2: Handle file or link
+        let finalLink: string;
+        let datatype: string = '';
+        const file = (req as any).file;
+
+        const newEntry = new  ResourceDataEntryModel({
+            datatype,
+            type,
+            name,
+            link: 'abc'
+        });
+
+        if (link) {
+            finalLink = link;
+            datatype = 'link';
+        } else if (req.file && req.file.buffer) {
+            finalLink = `${resource?._id}/${newEntry._id}`;
+            await uploadToS3(file.buffer, finalLink, file.mimetype);
+            datatype = 'file';
+        } else {
+            throw createHttpError(400, 'Either "link" or "file" must be provided.');
+        }
+
+        newEntry.datatype = datatype;
+        newEntry.link = finalLink;
+
+        await newEntry.save();
+
+        res.status(201).json({ message: 'Resource data entry created.', data: newEntry });
+    })
+);
+
 // POST /subdata
 createRouter.post('/subdata', upload.single('file'), expressAsyncHandler(async (req: Request, res: Response) => {
     const session = await mongoose.startSession();
     session.startTransaction();
 
 
-    const { name, datatype, resourceDataEntryId,link } = req.body;
+    const { name, datatype, resourceDataEntryId, link } = req.body;
     const file = (req as any).file;
 
     // Basic validation
@@ -315,11 +366,11 @@ createRouter.post('/subdata', upload.single('file'), expressAsyncHandler(async (
             { $push: { data: subData._id } },
             { session }
         );
-        if (file) {
-            subData.link = `${updatedResourceEntry?.resourceId}/${resourceDataEntryId}/${subData._id}`;
-        } else if (datatype === 'link') {
-            subData.link = link.trim();
-        }
+        // if (file) {
+        //     subData.link = `${updatedResourceEntry?.resourceId}/${resourceDataEntryId}/${subData._id}`;
+        // } else if (datatype === 'link') {
+        //     subData.link = link.trim();
+        // }
         await subData.save({ session });
 
         // Upload to S3
@@ -339,7 +390,7 @@ createRouter.post('/subdata', upload.single('file'), expressAsyncHandler(async (
 
 createRouter.put('/subdata/:id', upload.single('file'), expressAsyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { name, datatype, resourceDataEntryId,link } = req.body;
+    const { name, datatype, resourceDataEntryId, link } = req.body;
     const file = (req as any).file;
 
     const session = await mongoose.startSession();
@@ -388,11 +439,11 @@ createRouter.put('/subdata/:id', upload.single('file'), expressAsyncHandler(asyn
         resourceDataEntryId
     };
 
-    if (datatype === 'link') {
-        duplicateQuery.link = link.trim();
-    } else if (datatype === 'file') {
-        duplicateQuery.link = `${parentEntry.resourceId}/${resourceDataEntryId}/${id}`;
-    }
+    // if (datatype === 'link') {
+    //     duplicateQuery.link = link.trim();
+    // } else if (datatype === 'file') {
+    //     duplicateQuery.link = `${parentEntry.resourceId}/${resourceDataEntryId}/${id}`;
+    // }
 
     const duplicate = await SubDataModel.findOne(duplicateQuery);
     if (duplicate) {
@@ -404,14 +455,14 @@ createRouter.put('/subdata/:id', upload.single('file'), expressAsyncHandler(asyn
     existingSubData.datatype = datatype;
 
     if (datatype === 'link' || datatype === 'file') {
-        if (existingSubData.data.length > 0) {
-            throw createHttpError(400, 'Cannot update: linked ResourceItem still exists.');
-        }
-        if (datatype === 'link') {
-            existingSubData.link = link.trim();
-        } else if (datatype === 'file') {
-            existingSubData.link = `${parentEntry.resourceId}/${resourceDataEntryId}/${id}`;
-        }
+        // if (existingSubData.data.length > 0) {
+        //     throw createHttpError(400, 'Cannot update: linked ResourceItem still exists.');
+        // }
+        // if (datatype === 'link') {
+        //     existingSubData.link = link.trim();
+        // } else if (datatype === 'file') {
+        //     existingSubData.link = `${parentEntry.resourceId}/${resourceDataEntryId}/${id}`;
+        // }
     } else {
         existingSubData.link = '';
     }
@@ -479,7 +530,7 @@ createRouter.post('/resource-items', upload.single('file'), expressAsyncHandler(
     const session = await mongoose.startSession();
     session.startTransaction();
 
-    const { name, type, subDataId, link,icon } = req.body;
+    const { name, type, subDataId, link, icon } = req.body;
     const file = (req as any).file;
 
     // Validation: Required fields
@@ -487,7 +538,7 @@ createRouter.post('/resource-items', upload.single('file'), expressAsyncHandler(
         throw createHttpError(400, '"name" is required and cannot be empty.');
     }
 
-    if( !icon || typeof icon !== 'string' || icon.trim() === '' ) {
+    if (!icon || typeof icon !== 'string' || icon.trim() === '') {
         throw createHttpError(400, '"icon" is required and cannot be empty.');
     }
 
@@ -567,7 +618,7 @@ createRouter.post('/resource-items', upload.single('file'), expressAsyncHandler(
 
 createRouter.put('/resource-items/:id', upload.single('file'), expressAsyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { name, type, subDataId, link,icon } = req.body;
+    const { name, type, subDataId, link, icon } = req.body;
     const file = (req as any).file;
 
     const session = await mongoose.startSession();
@@ -579,7 +630,7 @@ createRouter.put('/resource-items/:id', upload.single('file'), expressAsyncHandl
         throw createHttpError(400, '"name" is required and cannot be empty.');
     }
 
-    if( !icon || typeof icon !== 'string' || icon.trim() === '' ) {
+    if (!icon || typeof icon !== 'string' || icon.trim() === '') {
         throw createHttpError(400, '"icon" is required and cannot be empty.');
     }
 

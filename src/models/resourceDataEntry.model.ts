@@ -1,20 +1,18 @@
-import mongoose, { Schema, Types } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 import collectionName from "../constants/collectionName";
 
 export interface IResourceDataEntry extends Document {
+    datatype: string;
     type: string;
-    data: Types.ObjectId[]; // refs to SubData
-    resourceId: Types.ObjectId; // back-ref to Resource
+    link: string;
+    name:string;
 }
 
 const ResourceDataEntrySchema = new Schema<IResourceDataEntry>({
+    datatype: {type:String,required:true},
     type: { type: String, required: true },
-    data: {
-        type: [Schema.Types.ObjectId],
-        ref: collectionName.subData,
-        default: []
-    },
-    resourceId: { type: Schema.Types.ObjectId, ref: collectionName.resource, required: true }
+    name:{type:String,required:true},
+    link: {type:String,required:true}
 });
 
 export const ResourceDataEntryModel = mongoose.model<IResourceDataEntry>(collectionName.resourceDataEntry, ResourceDataEntrySchema, collectionName.resourceDataEntry);
