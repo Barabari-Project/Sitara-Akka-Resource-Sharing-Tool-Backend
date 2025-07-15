@@ -88,9 +88,9 @@ createRouter.delete('/resources/:id', expressAsyncHandler(async (req: Request, r
         throw createHttpError(404, 'Resource not found');
     }
 
-    if (resource.data.length > 0) {
-        throw createHttpError(400, 'Cannot delete resource with linked data entries');
-    }
+    // if (resource.data.length > 0) {
+    //     throw createHttpError(400, 'Cannot delete resource with linked data entries');
+    // }
 
     await ResourceModel.findByIdAndDelete(id);
 
@@ -146,6 +146,7 @@ createRouter.post('/resource-data-entries', expressAsyncHandler(async (req: Requ
         res.status(201).json({ message: 'ResourceDataEntry created and linked', resourceEntry });
     } catch (err: any) {
         await session.abortTransaction();
+
         throw err;
     } finally {
         session.endSession();
@@ -192,6 +193,54 @@ createRouter.put('/resource-data-entries/:id', expressAsyncHandler(async (req: R
     res.status(200).json({ message: 'ResourceDataEntry updated', entry });
 }));
 
+createRouter.put('/resource-data-entries/data/v1/:id', expressAsyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { type, name, link, resourceId } = req.body;
+
+  if (!type || typeof type !== 'string' || type.trim() === '') {
+    throw createHttpError(400, 'Field "type" is required and cannot be empty.');
+  }
+
+  if (!name || typeof name !== 'string' || name.trim() === '') {
+    throw createHttpError(400, 'Field "name" is required and cannot be empty.');
+  }
+
+  if (!resourceId || !mongoose.Types.ObjectId.isValid(resourceId)) {
+    throw createHttpError(400, 'Valid "resourceId" is required.');
+  }
+
+  // Step 1: Check if the resource exists
+  const resourceExists = await ResourceModel.exists({ _id: resourceId });
+  if (!resourceExists) {
+    throw createHttpError(404, 'Resource not found.');
+  }
+
+  // Step 2: Find the entry to update
+  const entry = await ResourceDataEntryModel.findById(id);
+  if (!entry) {
+    throw createHttpError(404, 'ResourceDataEntry not found.');
+  }
+
+  // Step 3: Check uniqueness for new (type + resourceId) combo
+  const duplicate = await ResourceDataEntryModel.findOne({
+    _id: { $ne: id },
+    type: type.trim(),
+    resourceId,
+  });
+  if (duplicate) {
+    throw createHttpError(409, 'Another entry with the same type already exists for this resource.');
+  }
+
+  // Step 4: Update fields
+  entry.type = type.trim();
+  entry.name = name.trim();
+  if (link && typeof link === 'string') {
+    entry.link = link.trim(); // Optional field
+  }
+
+  await entry.save();
+  res.status(200).json({ message: '✅ ResourceDataEntry updated successfully', entry });
+}));
 // DELETE /resource-data-entries/:id
 createRouter.delete('/resource-data-entries/:id', expressAsyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
@@ -243,25 +292,25 @@ createRouter.post(
         const { type, name, link, resourceId } = req.body;
 
         if (!type || !name || !resourceId) {
-          throw createHttpError(400, 'Fields "type", "name", and "resourceId" are required.');
+            throw createHttpError(400, 'Fields "type", "name", and "resourceId" are required.');
         }
-    
+
         if (!mongoose.Types.ObjectId.isValid(resourceId)) {
-          throw createHttpError(400, 'Invalid "resourceId".');
+            throw createHttpError(400, 'Invalid "resourceId".');
         }
-    
+
         // Step 1: Validate resourceId
         const resource = await ResourceModel.findById(resourceId);
         if (!resource) {
-          throw createHttpError(404, 'Resource not found.');
+            throw createHttpError(404, 'Resource not found.');
         }
 
-         // Step 2: Handle file or link
+        // Step 2: Handle file or link
         let finalLink: string;
         let datatype: string = '';
         const file = (req as any).file;
 
-        const newEntry = new  ResourceDataEntryModel({
+        const newEntry = new ResourceDataEntryModel({
             datatype,
             type,
             name,
@@ -283,7 +332,8 @@ createRouter.post(
         newEntry.link = finalLink;
 
         await newEntry.save();
-
+        resource.data.push(newEntry._id);
+        await resource.save();
         res.status(201).json({ message: 'Resource data entry created.', data: newEntry });
     })
 );

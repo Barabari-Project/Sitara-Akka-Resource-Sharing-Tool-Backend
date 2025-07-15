@@ -48,30 +48,32 @@ getRouter.get('/resources/subjects/v1', expressAsyncHandler(async (req: Request,
         select: 'type'
     });
 
-    // Step 2: Map subj -> Set of types
-    const subjTypeMap: Record<string, Set<string>> = {};
+    // Step 2: Map subj -> { types: Set<string>, _id: string }
+    const subjMap: Record<string, { types: Set<string>, _id: string }> = {};
 
     for (const resource of resources) {
         const subject = resource.subj;
-        if (!subjTypeMap[subject]) {
-            subjTypeMap[subject] = new Set();
+        if (!subjMap[subject]) {
+            subjMap[subject] = { types: new Set(), _id: resource._id.toString() };
         }
 
         resource.data.forEach((entry: any) => {
             if (entry?.type) {
-                subjTypeMap[subject].add(entry.type);
+                subjMap[subject].types.add(entry.type);
             }
         });
     }
 
     // Step 3: Convert to desired response format
-    const response = Object.entries(subjTypeMap).map(([subj, types]) => ({
+    const response = Object.entries(subjMap).map(([subj, data]) => ({
         subj,
-        types: Array.from(types)
+        types: Array.from(data.types),
+        _id: data._id
     }));
 
     res.status(200).json({ resources: response });
 }));
+
 
 getRouter.get('/resources/data/v1', expressAsyncHandler(async (req: Request, res: Response) => {
     const { resourceId, type } = req.query;
@@ -104,7 +106,11 @@ getRouter.get('/resources/data/v1', expressAsyncHandler(async (req: Request, res
 // GET all resource data entries for a given resourceId
 getRouter.get('/resource-data-entries/:resourceId', expressAsyncHandler(async (req: Request, res: Response) => {
     const { resourceId } = req.params;
+    console.log(resourceId);
+    
     const entries = await ResourceDataEntryModel.find({ resourceId });
+    console.log(entries);
+    
     res.status(200).json({ entries });
 }));
 
