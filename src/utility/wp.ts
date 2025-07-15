@@ -22,11 +22,18 @@ export const sendMediaToWhatsApp = async (mediaId: string, toPhoneNumber: string
 }
 
 export const openWhatsAppWindow = async (toPhoneNumber: string) => {
-    const response = await axios.post(`${process.env.WP_SERVER_BASE_URL}/${wpEndPoint.openWhatsAppWindow}`, {
-        toPhoneNumber,
-        templateName: process.env.WP_TEMPLATE_NAME,
-        templateLanguage: process.env.WP_TEMPLATE_LANGUAGE,
-    });
-
-    return response.data;
+    try {
+        const response = await axios.post(`${process.env.WP_SERVER_BASE_URL}/${wpEndPoint.openWhatsAppWindow}`, {
+            toPhoneNumber,
+            templateName: process.env.WP_TEMPLATE_NAME,
+            templateLanguage: process.env.WP_TEMPLATE_LANGUAGE,
+        }, {
+            headers: {
+                'x-api-key': process.env.WP_API_KEY,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        console.log(error);
+    }
 }

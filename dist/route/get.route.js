@@ -67,6 +67,10 @@ exports.getRouter.get('/resource-items/:subDataId', (0, express_async_handler_1.
     }
     res.status(200).json({ items });
 })));
+exports.getRouter.get("/ghi", (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    yield (0, wp_1.openWhatsAppWindow)("9033107408");
+    res.sendStatus(200);
+})));
 // GET resource item link by ID
 exports.getRouter.get('/resource-items/link/:id', (0, auth_middleware_1.authMiddleware)([auth_middleware_1.UserRoles.ADMIN, auth_middleware_1.UserRoles.USER]), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;

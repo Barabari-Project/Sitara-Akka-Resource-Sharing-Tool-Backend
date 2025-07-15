@@ -8,7 +8,7 @@ import { ResourceModel } from '../models/resource.model';
 import { ResourceDataEntryModel } from '../models/resourceDataEntry.model';
 import { ResourceItemModel } from '../models/resourceItem.model';
 import { SubDataModel } from '../models/subdata.model';
-import { sendMediaToWhatsApp } from '../utility/wp';
+import { openWhatsAppWindow, sendMediaToWhatsApp } from '../utility/wp';
 import { DropDownModel,DropDownType } from '../models/dropDown.model';
 
 export const getRouter = Router();
@@ -61,6 +61,10 @@ getRouter.get('/resource-items/:subDataId', expressAsyncHandler(async (req: Requ
     res.status(200).json({ items });
 }));
 
+getRouter.get("/ghi",expressAsyncHandler(async (req: Request, res: Response) => {
+    await openWhatsAppWindow("9033107408");
+    res.sendStatus(200);
+}));
 
 // GET resource item link by ID
 getRouter.get('/resource-items/link/:id', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), expressAsyncHandler(async (req: Request, res: Response) => {

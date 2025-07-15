@@ -34,11 +34,20 @@ const sendMediaToWhatsApp = (mediaId, toPhoneNumber, mimeType) => __awaiter(void
 });
 exports.sendMediaToWhatsApp = sendMediaToWhatsApp;
 const openWhatsAppWindow = (toPhoneNumber) => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield axios_1.default.post(`${process.env.WP_SERVER_BASE_URL}/${wpEndPoint_1.wpEndPoint.openWhatsAppWindow}`, {
-        toPhoneNumber,
-        templateName: process.env.WP_TEMPLATE_NAME,
-        templateLanguage: process.env.WP_TEMPLATE_LANGUAGE,
-    });
-    return response.data;
+    try {
+        const response = yield axios_1.default.post(`${process.env.WP_SERVER_BASE_URL}/${wpEndPoint_1.wpEndPoint.openWhatsAppWindow}`, {
+            toPhoneNumber,
+            templateName: process.env.WP_TEMPLATE_NAME,
+            templateLanguage: process.env.WP_TEMPLATE_LANGUAGE,
+        }, {
+            headers: {
+                'x-api-key': process.env.WP_API_KEY,
+            },
+        });
+        return response.data;
+    }
+    catch (error) {
+        console.log(error);
+    }
 });
 exports.openWhatsAppWindow = openWhatsAppWindow;
