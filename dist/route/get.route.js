@@ -40,10 +40,69 @@ exports.getRouter.get('/resources/subjects', (0, express_async_handler_1.default
     const resources = yield resource_model_1.ResourceModel.find({ lan }).select('-data -__v');
     res.status(200).json({ resources });
 })));
+// {
+//   "resources": [
+//     { "subj": "Math", "types": ["pdf", "video"] },
+//     { "subj": "English", "types": ["audio", "pdf"] }
+//   ]
+// }
+exports.getRouter.get('/resources/subjects/v1', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { lan } = req.query;
+    if (!lan || typeof lan !== 'string') {
+        throw (0, http_errors_1.default)(400, 'Query param "lan" is required and must be a string.');
+    }
+    // Step 1: Fetch all resources for the given language
+    const resources = yield resource_model_1.ResourceModel.find({ lan }).populate({
+        path: 'data',
+        select: 'type'
+    });
+    // Step 2: Map subj -> { types: Set<string>, _id: string }
+    const subjMap = {};
+    for (const resource of resources) {
+        const subject = resource.subj;
+        if (!subjMap[subject]) {
+            subjMap[subject] = { types: new Set(), _id: resource._id.toString() };
+        }
+        resource.data.forEach((entry) => {
+            if (entry === null || entry === void 0 ? void 0 : entry.type) {
+                subjMap[subject].types.add(entry.type);
+            }
+        });
+    }
+    // Step 3: Convert to desired response format
+    const response = Object.entries(subjMap).map(([subj, data]) => ({
+        subj,
+        types: Array.from(data.types),
+        _id: data._id
+    }));
+    res.status(200).json({ resources: response });
+})));
+exports.getRouter.get('/resources/data/v1', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { resourceId, type } = req.query;
+    if (!resourceId || typeof resourceId !== 'string' || !mongoose_1.default.Types.ObjectId.isValid(resourceId)) {
+        throw (0, http_errors_1.default)(400, 'Valid query param "resourceId" is required.');
+    }
+    if (!type || typeof type !== 'string') {
+        throw (0, http_errors_1.default)(400, 'Query param "type" is required and must be a string.');
+    }
+    // Step 1: Find the resource by ID and populate its data
+    const resource = yield resource_model_1.ResourceModel.findById(resourceId).populate({
+        path: 'data',
+        match: { type },
+        select: '-__v'
+    });
+    if (!resource) {
+        throw (0, http_errors_1.default)(404, 'Resource not found.');
+    }
+    // Step 2: Return filtered resource data entries
+    res.status(200).json({ data: resource.data });
+})));
 // GET all resource data entries for a given resourceId
 exports.getRouter.get('/resource-data-entries/:resourceId', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { resourceId } = req.params;
-    const entries = yield resourceDataEntry_model_1.ResourceDataEntryModel.find({ resourceId }).select('-data -__v -resourceId');
+    console.log(resourceId);
+    const entries = yield resourceDataEntry_model_1.ResourceDataEntryModel.find({ resourceId });
+    console.log(entries);
     res.status(200).json({ entries });
 })));
 // GET all subdata entries for a given resourceDataEntryId
