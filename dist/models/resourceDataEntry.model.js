@@ -40,12 +40,9 @@ exports.ResourceDataEntryModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const collectionName_1 = __importDefault(require("../constants/collectionName"));
 const ResourceDataEntrySchema = new mongoose_1.Schema({
+    datatype: { type: String, required: true },
     type: { type: String, required: true },
-    data: {
-        type: [mongoose_1.Schema.Types.ObjectId],
-        ref: collectionName_1.default.subData,
-        default: []
-    },
-    resourceId: { type: mongoose_1.Schema.Types.ObjectId, ref: collectionName_1.default.resource, required: true }
+    name: { type: String, required: true },
+    link: { type: String, required: true }
 });
 exports.ResourceDataEntryModel = mongoose_1.default.model(collectionName_1.default.resourceDataEntry, ResourceDataEntrySchema, collectionName_1.default.resourceDataEntry);
