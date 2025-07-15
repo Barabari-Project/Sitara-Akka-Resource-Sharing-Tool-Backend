@@ -9,7 +9,7 @@ import { ResourceDataEntryModel } from '../models/resourceDataEntry.model';
 import { ResourceItemModel } from '../models/resourceItem.model';
 import { SubDataModel } from '../models/subdata.model';
 import { sendMediaToWhatsApp } from '../utility/wp';
-import { DropDownModel,DropDownType } from '../models/dropDown.model';
+import { DropDownModel, DropDownType } from '../models/dropDown.model';
 
 export const getRouter = Router();
 
@@ -30,11 +30,87 @@ getRouter.get('/resources/subjects', expressAsyncHandler(async (req: Request, re
     res.status(200).json({ resources });
 }));
 
+// {
+//   "resources": [
+//     { "subj": "Math", "types": ["pdf", "video"] },
+//     { "subj": "English", "types": ["audio", "pdf"] }
+//   ]
+// }
+getRouter.get('/resources/subjects/v1', expressAsyncHandler(async (req: Request, res: Response) => {
+    const { lan } = req.query;
+    if (!lan || typeof lan !== 'string') {
+        throw createHttpError(400, 'Query param "lan" is required and must be a string.');
+    }
+
+    // Step 1: Fetch all resources for the given language
+    const resources = await ResourceModel.find({ lan }).populate({
+        path: 'data',
+        select: 'type'
+    });
+
+    // Step 2: Map subj -> { types: Set<string>, _id: string }
+    const subjMap: Record<string, { types: Set<string>, _id: string }> = {};
+
+    for (const resource of resources) {
+        const subject = resource.subj;
+        if (!subjMap[subject]) {
+            subjMap[subject] = { types: new Set(), _id: resource._id.toString() };
+        }
+
+        resource.data.forEach((entry: any) => {
+            if (entry?.type) {
+                subjMap[subject].types.add(entry.type);
+            }
+        });
+    }
+
+    // Step 3: Convert to desired response format
+    const response = Object.entries(subjMap).map(([subj, data]) => ({
+        subj,
+        types: Array.from(data.types),
+        _id: data._id
+    }));
+
+    res.status(200).json({ resources: response });
+}));
+
+
+getRouter.get('/resources/data/v1', expressAsyncHandler(async (req: Request, res: Response) => {
+    const { resourceId, type } = req.query;
+
+    if (!resourceId || typeof resourceId !== 'string' || !mongoose.Types.ObjectId.isValid(resourceId)) {
+        throw createHttpError(400, 'Valid query param "resourceId" is required.');
+    }
+
+    if (!type || typeof type !== 'string') {
+        throw createHttpError(400, 'Query param "type" is required and must be a string.');
+    }
+
+    // Step 1: Find the resource by ID and populate its data
+    const resource = await ResourceModel.findById(resourceId).populate({
+        path: 'data',
+        match: { type },
+        select: '-__v'
+    });
+
+    if (!resource) {
+        throw createHttpError(404, 'Resource not found.');
+    }
+
+    // Step 2: Return filtered resource data entries
+    res.status(200).json({ data: resource.data });
+}));
+
+
 
 // GET all resource data entries for a given resourceId
 getRouter.get('/resource-data-entries/:resourceId', expressAsyncHandler(async (req: Request, res: Response) => {
     const { resourceId } = req.params;
-    const entries = await ResourceDataEntryModel.find({ resourceId }).select('-data -__v -resourceId');
+    console.log(resourceId);
+    
+    const entries = await ResourceDataEntryModel.find({ resourceId });
+    console.log(entries);
+    
     res.status(200).json({ entries });
 }));
 
@@ -72,11 +148,11 @@ getRouter.get('/resource-items/link/:id', authMiddleware([UserRoles.ADMIN, UserR
 
     const item = await ResourceItemModel.findById(id).select('type link');
 
-    if (!item || item.type!=='file' || !item.link) {
+    if (!item || item.type !== 'file' || !item.link) {
         throw createHttpError(404, 'Resource item not found');
     }
 
- 
+
     const media = await ExpiringMediaModel.findById(id);
     if (!media) {
         throw createHttpError(404, 'Internal server error. Please try again later.');
@@ -92,7 +168,7 @@ getRouter.get('/subdata/link/:id', authMiddleware([UserRoles.ADMIN, UserRoles.US
 
     const subData = await SubDataModel.findById(id).select('datatype link');
 
-    if (!subData || subData.datatype!=='file' || !subData.link) {
+    if (!subData || subData.datatype !== 'file' || !subData.link) {
         throw createHttpError(404, 'SubData not found');
     }
 
