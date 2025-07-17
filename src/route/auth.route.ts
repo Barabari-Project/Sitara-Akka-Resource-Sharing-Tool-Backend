@@ -66,7 +66,7 @@ authRouter.post('/admin/login', expressAsyncHandler(async (req: Request, res: Re
     const { phoneNumber } = req.body;
 
     if (!phoneNumber || typeof phoneNumber !== 'string') {
-        throw createHttpError(400, 'Phone number is required');
+        throw createHttpError(400, 'Phone number is required !');
     }
 
     let user = await UserModel.findOne({ phoneNumber, role: UserRoles.ADMIN });
