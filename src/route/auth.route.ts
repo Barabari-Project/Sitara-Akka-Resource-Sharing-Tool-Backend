@@ -97,7 +97,7 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
     is10th,
     questionAnswers 
   } = req.body;
-  
+
   //Validation
   if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim() === '' || phoneNumber.trim().length !== 10) {
     throw createHttpError(400, 'Phone number is required');
@@ -128,7 +128,7 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
         typeof qa.ans !== 'string' ||
         qa.ans.trim() === ''
       ) {
-        throw createHttpError(400, 'Each question answer must have a question number and a non-empty answer');
+        throw createHttpError(400, 'Each question answer must have a question number and a non-empty answer !');
       }
     }
   }
