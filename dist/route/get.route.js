@@ -25,6 +25,7 @@ const resourceItem_model_1 = require("../models/resourceItem.model");
 const subdata_model_1 = require("../models/subdata.model");
 const wp_1 = require("../utility/wp");
 const dropDown_model_1 = require("../models/dropDown.model");
+const user_model_1 = require("../models/user.model");
 exports.getRouter = (0, express_1.Router)();
 // GET unique languages
 exports.getRouter.get('/resources/languages', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -175,4 +176,21 @@ exports.getRouter.get('/dropdown-data', (0, express_async_handler_1.default)((re
     }
     const dropdownData = yield dropDown_model_1.DropDownModel.find({ type }).select('type value');
     res.status(200).json({ dropdownData });
+})));
+exports.getRouter.get("/user_check", (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { phoneNumber } = req.query;
+    if (!phoneNumber || typeof phoneNumber !== "string") {
+        throw (0, http_errors_1.default)(400, 'Query param "phoneNumber" is required and must be a string.');
+    }
+    const isUser = yield user_model_1.UserModel.findOne({ phoneNumber });
+    if (isUser) {
+        res.status(200).json({
+            newForm: false
+        });
+    }
+    else {
+        res.status(200).json({
+            newForm: true
+        });
+    }
 })));

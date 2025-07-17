@@ -12,6 +12,7 @@ import { openWhatsAppWindow, sendMediaToWhatsApp } from '../utility/wp';
 import { DropDownModel,DropDownType } from '../models/dropDown.model';
 import { sendMediaToWhatsApp } from '../utility/wp';
 import { DropDownModel, DropDownType } from '../models/dropDown.model';
+import { UserModel } from '../models/user.model';
 
 export const getRouter = Router();
 
@@ -109,10 +110,10 @@ getRouter.get('/resources/data/v1', expressAsyncHandler(async (req: Request, res
 getRouter.get('/resource-data-entries/:resourceId', expressAsyncHandler(async (req: Request, res: Response) => {
     const { resourceId } = req.params;
     console.log(resourceId);
-    
+
     const entries = await ResourceDataEntryModel.find({ resourceId });
     console.log(entries);
-    
+
     res.status(200).json({ entries });
 }));
 
@@ -200,3 +201,21 @@ getRouter.get('/dropdown-data', expressAsyncHandler(async (req: Request, res: Re
     const dropdownData = await DropDownModel.find({ type }).select('type value');
     res.status(200).json({ dropdownData });
 }));
+
+getRouter.get("/user_check", expressAsyncHandler(async (req: Request, res: Response) => {
+    const { phoneNumber } = req.query;
+    if (!phoneNumber || typeof phoneNumber !== "string") {
+        throw createHttpError(400, 'Query param "phoneNumber" is required and must be a string.');
+    }
+    const isUser = await UserModel.findOne({ phoneNumber });
+
+    if (isUser) {
+        res.status(200).json({
+            newForm: false
+        })
+    } else {
+        res.status(200).json({
+            newForm: true
+        })
+    }
+}))

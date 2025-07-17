@@ -44,6 +44,15 @@ const UserSchema = new mongoose_1.Schema({
     age: Number,
     gender: { type: String, enum: ['male', 'female', 'other'] },
     std: String,
-    role: { type: String, enum: Object.values(auth_middleware_1.UserRoles), default: auth_middleware_1.UserRoles.USER }
+    role: { type: String, enum: Object.values(auth_middleware_1.UserRoles), default: auth_middleware_1.UserRoles.USER },
+    schoolName: String,
+    district: String,
+    medium: String,
+    questionAnswers: [
+        {
+            question: { type: Number, required: true },
+            ans: { type: String, required: true },
+        }
+    ]
 });
 exports.UserModel = mongoose_1.default.model('User', UserSchema);

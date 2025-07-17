@@ -74,3 +74,36 @@ exports.authRouter.post('/admin/login', (0, express_async_handler_1.default)((re
     });
     res.status(200).json({ message: 'Login successful', token, user });
 })));
+exports.authRouter.post("/new_form", (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { firstName, lastName, schoolName, district, medium, gender, phoneNumber, std, is10th, questionAnswers } = req.body;
+    //Validation
+    if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim() === '' || phoneNumber.trim().length !== 10) {
+        throw (0, http_errors_1.default)(400, 'Phone number is required');
+    }
+    if (!schoolName || typeof schoolName !== 'string' || schoolName.trim() === '') {
+        throw (0, http_errors_1.default)(400, 'School Name is required');
+    }
+    if (!district || typeof district !== 'string' || district.trim() === '') {
+        throw (0, http_errors_1.default)(400, 'District is required');
+    }
+    if (!medium || typeof medium !== 'string' || medium.trim() === '') {
+        throw (0, http_errors_1.default)(400, 'Medium is required');
+    }
+    // Not in 10th then Question and Answer included
+    if (!is10th) {
+        if (!Array.isArray(questionAnswers) || questionAnswers.length !== 3) {
+            throw (0, http_errors_1.default)(400, 'Three question answers are required if not 10th standard');
+        }
+        for (const qa of questionAnswers) {
+            if (typeof qa !== 'object' ||
+                typeof qa.question !== 'number' ||
+                typeof qa.ans !== 'string' ||
+                qa.ans.trim() === '') {
+                throw (0, http_errors_1.default)(400, 'Each question answer must have a question number and a non-empty answer !');
+            }
+        }
+    }
+    const user = yield user_model_1.UserModel.findOneAndUpdate({ phoneNumber }, Object.assign({ phoneNumber: phoneNumber.trim(), firstName: firstName === null || firstName === void 0 ? void 0 : firstName.trim(), lastName: lastName === null || lastName === void 0 ? void 0 : lastName.trim(), gender: gender === null || gender === void 0 ? void 0 : gender.trim(), std: std === null || std === void 0 ? void 0 : std.trim(), schoolName: schoolName === null || schoolName === void 0 ? void 0 : schoolName.trim(), district: district === null || district === void 0 ? void 0 : district.trim(), medium: medium === null || medium === void 0 ? void 0 : medium.trim(), role: auth_middleware_1.UserRoles.USER }, (is10th ? {} : { questionAnswers })), { new: true, upsert: true });
+    const token = jsonwebtoken_1.default.sign({ phoneNumber: user === null || user === void 0 ? void 0 : user.phoneNumber, role: user === null || user === void 0 ? void 0 : user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.status(201).json({ message: 'User registered', user, token });
+})));
