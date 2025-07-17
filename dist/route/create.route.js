@@ -82,9 +82,9 @@ exports.createRouter.delete('/resources/:id', (0, express_async_handler_1.defaul
     if (!resource) {
         throw (0, http_errors_1.default)(404, 'Resource not found');
     }
-    // if (resource.data.length > 0) {
-    //     throw createHttpError(400, 'Cannot delete resource with linked data entries');
-    // }
+    if (resource.data.length > 0) {
+        throw (0, http_errors_1.default)(400, 'Cannot delete resource with linked data entries');
+    }
     yield resource_model_1.ResourceModel.findByIdAndDelete(id);
     res.status(200).json({ message: 'Resource deleted successfully' });
 })));
@@ -206,6 +206,7 @@ exports.createRouter.put('/resource-data-entries/data/v1/:id', (0, express_async
 // DELETE /resource-data-entries/:id
 exports.createRouter.delete('/resource-data-entries/:id', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
+    const { resourceId } = req.query;
     const entry = yield resourceDataEntry_model_1.ResourceDataEntryModel.findById(id);
     if (!entry) {
         throw (0, http_errors_1.default)(404, 'ResourceDataEntry not found.');
@@ -217,11 +218,7 @@ exports.createRouter.delete('/resource-data-entries/:id', (0, express_async_hand
     session.startTransaction();
     try {
         // Remove ref from parent Resource
-        // await ResourceModel.findByIdAndUpdate(
-        //     entry.resourceId,
-        //     { $pull: { data: entry._id } },
-        //     { session }
-        // );
+        yield resource_model_1.ResourceModel.findByIdAndUpdate(resourceId, { $pull: { data: entry._id } }, { session });
         yield resourceDataEntry_model_1.ResourceDataEntryModel.findByIdAndDelete(entry._id, { session });
         yield session.commitTransaction();
         res.status(200).json({ message: 'ResourceDataEntry deleted successfully' });
