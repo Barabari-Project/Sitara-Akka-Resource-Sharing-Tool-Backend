@@ -63,17 +63,16 @@ authRouter.post('/login', expressAsyncHandler(async (req: Request, res: Response
 // POST /login
 authRouter.post('/admin/login', expressAsyncHandler(async (req: Request, res: Response) => {
 
-    const { phoneNumber } = req.body;
+    const { phoneNumber,password } = req.body;
 
     if (!phoneNumber || typeof phoneNumber !== 'string') {
         throw createHttpError(400, 'Phone number is required');
     }
 
-    let user = await UserModel.findOne({ phoneNumber, role: UserRoles.ADMIN });
-    let isAlreadyPresent = true;
+    let user = await UserModel.findOne({ phoneNumber, role: UserRoles.ADMIN,password:password });
 
     if (!user) {
-        throw createHttpError(404, 'User not found');
+        throw createHttpError(404, 'Invalid Credentials');
     }
 
     const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {

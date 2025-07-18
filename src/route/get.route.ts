@@ -3,16 +3,14 @@ import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
 import mongoose from 'mongoose';
 import { authMiddleware, UserRoles } from '../middleware/auth.middleware';
+import { DropDownModel, DropDownType } from '../models/dropDown.model';
 import { ExpiringMediaModel } from '../models/expiringMedia.model';
 import { ResourceModel } from '../models/resource.model';
 import { ResourceDataEntryModel } from '../models/resourceDataEntry.model';
 import { ResourceItemModel } from '../models/resourceItem.model';
 import { SubDataModel } from '../models/subdata.model';
-import { openWhatsAppWindow, sendMediaToWhatsApp } from '../utility/wp';
-import { DropDownModel,DropDownType } from '../models/dropDown.model';
-import { sendMediaToWhatsApp } from '../utility/wp';
-import { DropDownModel, DropDownType } from '../models/dropDown.model';
 import { UserModel } from '../models/user.model';
+import { openWhatsAppWindow, sendMediaToWhatsApp } from '../utility/wp';
 
 export const getRouter = Router();
 

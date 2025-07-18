@@ -39,6 +39,7 @@ const mongoose_1 = __importStar(require("mongoose"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const UserSchema = new mongoose_1.Schema({
     phoneNumber: { type: String, required: true, unique: true },
+    password: { type: String, select: false }, // <-- Optional password field
     firstName: String,
     lastName: String,
     age: Number,

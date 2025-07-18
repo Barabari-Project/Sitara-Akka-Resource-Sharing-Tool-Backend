@@ -146,7 +146,6 @@ createRouter.post('/resource-data-entries', expressAsyncHandler(async (req: Requ
         res.status(201).json({ message: 'ResourceDataEntry created and linked', resourceEntry });
     } catch (err: any) {
         await session.abortTransaction();
-
         throw err;
     } finally {
         session.endSession();

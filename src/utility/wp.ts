@@ -1,7 +1,5 @@
 import axios from "axios";
 import { wpEndPoint } from "../constants/wpEndPoint";
-import { ExpiringMediaModel } from "../models/expiringMedia.model";
-import { Readable } from "node:stream";
 
 export const getWindowOpenStatus = async (phoneNumber: string) => {
     const response = await axios.get(`${process.env.WP_SERVER_BASE_URL}/${wpEndPoint.userStatus}/${phoneNumber}`);

@@ -4,6 +4,7 @@ import { UserRoles } from '../middleware/auth.middleware';
 
 export interface IUser extends Document {
   phoneNumber: string;
+  password?: string; // <-- Optional password field
   firstName?: string;
   lastName?: string;
   age?: number;
@@ -21,6 +22,7 @@ export interface IUser extends Document {
 
 const UserSchema: Schema = new Schema<IUser>({
   phoneNumber: { type: String, required: true, unique: true },
+  password: { type: String, select: false }, // <-- Optional password field
   firstName: String,
   lastName: String,
   age: Number,
