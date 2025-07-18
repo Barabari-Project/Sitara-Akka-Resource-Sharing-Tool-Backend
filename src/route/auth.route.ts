@@ -93,13 +93,12 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
     gender,
     phoneNumber,
     std,
-    is10th,
-    questionAnswers 
+    questionAnswers
   } = req.body;
 
-  //Validation
-  if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim() === '' || phoneNumber.trim().length !== 10) {
-    throw createHttpError(400, 'Phone number is required');
+  //  Validations
+  if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim().length !== 10) {
+    throw createHttpError(400, 'Valid 10-digit phone number is required');
   }
 
   if (!schoolName || typeof schoolName !== 'string' || schoolName.trim() === '') {
@@ -114,12 +113,9 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
     throw createHttpError(400, 'Medium is required');
   }
 
-  // Not in 10th then Question and Answer included
-  if (!is10th) {
-    if (!Array.isArray(questionAnswers) || questionAnswers.length !== 3) {
-      throw createHttpError(400, 'Three question answers are required if not 10th standard');
-    }
-
+  // ✅ Check if questionAnswers is provided and valid
+  let validQA: { question: number; ans: string }[] | undefined = undefined;
+  if (Array.isArray(questionAnswers) && questionAnswers.length === 3) {
     for (const qa of questionAnswers) {
       if (
         typeof qa !== 'object' ||
@@ -127,11 +123,13 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
         typeof qa.ans !== 'string' ||
         qa.ans.trim() === ''
       ) {
-        throw createHttpError(400, 'Each question answer must have a question number and a non-empty answer !');
+        throw createHttpError(400, 'Each question answer must have a question number and a non-empty answer!');
       }
     }
+    validQA = questionAnswers;
   }
 
+  // ✅ Save or update user
   const user = await UserModel.findOneAndUpdate(
     { phoneNumber },
     {
@@ -140,15 +138,16 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
       lastName: lastName?.trim(),
       gender: gender?.trim(),
       std: std?.trim(),
-      schoolName: schoolName?.trim(),
-      district: district?.trim(),
-      medium: medium?.trim(),
+      schoolName: schoolName.trim(),
+      district: district.trim(),
+      medium: medium.trim(),
       role: UserRoles.USER,
-      ...(is10th ? {} : { questionAnswers }) 
+      ...(validQA ? { questionAnswers: validQA } : {}) // only include if valid
     },
     { new: true, upsert: true }
   );
 
+  // ✅ Generate token
   const token = jwt.sign(
     { phoneNumber: user?.phoneNumber, role: user?.role },
     process.env.JWT_SECRET!,
@@ -157,3 +156,4 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
 
   res.status(201).json({ message: 'User registered', user, token });
 }));
+
