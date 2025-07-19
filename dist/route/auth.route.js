@@ -107,7 +107,7 @@ exports.authRouter.post("/new_form", (0, express_async_handler_1.default)((req, 
     const user = yield user_model_1.UserModel.findOneAndUpdate({ phoneNumber }, Object.assign({ phoneNumber: phoneNumber.trim(), firstName: firstName === null || firstName === void 0 ? void 0 : firstName.trim(), lastName: lastName === null || lastName === void 0 ? void 0 : lastName.trim(), gender: gender === null || gender === void 0 ? void 0 : gender.trim(), std: std === null || std === void 0 ? void 0 : std.trim(), schoolName: schoolName.trim(), district: district.trim(), medium: medium.trim(), role: auth_middleware_1.UserRoles.USER }, (validQA ? { questionAnswers: validQA } : {}) // only include if valid
     ), { new: true, upsert: true });
     // TODO: JASH: verify this are we getting std as string? if not then change this if condition accordingly
-    if (std == 10) {
+    if (std == "10") {
         const templateNmae = yield (0, exports.getTemplatesByType)("10th Std");
         (0, wp_1.sendTextTemplateMsg)(phoneNumber, templateNmae);
     }
@@ -143,3 +143,23 @@ const createTemplate = () => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.createTemplate = createTemplate;
+// GET /me
+exports.authRouter.get('/get_user', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw (0, http_errors_1.default)(401, 'Authorization token missing or invalid');
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
+        const user = yield user_model_1.UserModel.findOne({ phoneNumber: decoded.phoneNumber }).select('-password');
+        if (!user) {
+            throw (0, http_errors_1.default)(404, 'User not found');
+        }
+        res.status(200).json({ user });
+    }
+    catch (error) {
+        console.error(error);
+        throw (0, http_errors_1.default)(401, 'Invalid or expired token');
+    }
+})));
