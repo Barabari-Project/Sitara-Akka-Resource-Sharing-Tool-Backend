@@ -23,6 +23,7 @@ const resourceItem_model_1 = require("../models/resourceItem.model");
 const subdata_model_1 = require("../models/subdata.model");
 const multer_1 = __importDefault(require("multer"));
 const awsS3_1 = require("../utility/awsS3");
+const expiringMedia_model_1 = require("../models/expiringMedia.model");
 exports.createRouter = (0, express_1.Router)();
 // POST /resources - Create new resource with validation and duplicate check
 exports.createRouter.post('/resources', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -34,7 +35,7 @@ exports.createRouter.post('/resources', (0, express_async_handler_1.default)((re
     // Check for duplicate resource
     const existing = yield resource_model_1.ResourceModel.findOne({ lan, class: className, subj });
     if (existing) {
-        throw (0, http_errors_1.default)(409, 'Resource with same lan, class, and subj already exists');
+        throw (0, http_errors_1.default)(409, 'Subject with same lan, class, and subj already exists');
     }
     // Create and save new resource
     const resource = new resource_model_1.ResourceModel({
@@ -44,7 +45,7 @@ exports.createRouter.post('/resources', (0, express_async_handler_1.default)((re
         data: []
     });
     yield resource.save();
-    res.status(201).json({ message: 'Resource created', resource });
+    res.status(201).json({ message: 'Subject created', resource });
 })));
 // PUT /resources/:id
 exports.createRouter.put('/resources/:id', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -80,13 +81,13 @@ exports.createRouter.delete('/resources/:id', (0, express_async_handler_1.defaul
     const { id } = req.params;
     const resource = yield resource_model_1.ResourceModel.findById(id);
     if (!resource) {
-        throw (0, http_errors_1.default)(404, 'Resource not found');
+        throw (0, http_errors_1.default)(404, 'Subject not found');
     }
     if (resource.data.length > 0) {
-        throw (0, http_errors_1.default)(400, 'Cannot delete resource with linked data entries');
+        throw (0, http_errors_1.default)(400, 'Cannot delete Subject with linked data entries');
     }
     yield resource_model_1.ResourceModel.findByIdAndDelete(id);
-    res.status(200).json({ message: 'Resource deleted successfully' });
+    res.status(200).json({ message: 'Subject deleted successfully' });
 })));
 // POST /resource-data-entries
 exports.createRouter.post('/resource-data-entries', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -220,6 +221,7 @@ exports.createRouter.delete('/resource-data-entries/:id', (0, express_async_hand
         // Remove ref from parent Resource
         yield resource_model_1.ResourceModel.findByIdAndUpdate(resourceId, { $pull: { data: entry._id } }, { session });
         yield resourceDataEntry_model_1.ResourceDataEntryModel.findByIdAndDelete(entry._id, { session });
+        yield expiringMedia_model_1.ExpiringMediaModel.findByIdAndDelete(entry._id, { session });
         yield session.commitTransaction();
         res.status(200).json({ message: 'ResourceDataEntry deleted successfully' });
     }
@@ -237,48 +239,66 @@ exports.createRouter.delete('/resource-data-entries/:id', (0, express_async_hand
 // Multer config
 const storage = multer_1.default.memoryStorage();
 const upload = (0, multer_1.default)({ storage });
-exports.createRouter.post('/resources/data/v1', upload.single('file'), // Handle file upload if present
-(0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { type, name, link, resourceId } = req.body;
-    if (!type || !name || !resourceId) {
-        throw (0, http_errors_1.default)(400, 'Fields "type", "name", and "resourceId" are required.');
+exports.createRouter.post('/resources/data/v1', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const session = yield mongoose_1.default.startSession();
+    session.startTransaction();
+    try {
+        const { type, name, link, resourceId } = req.body;
+        const file = req.file;
+        if (!type || !name || !resourceId) {
+            throw (0, http_errors_1.default)(400, 'Fields "type", "name", and "resourceId" are required.');
+        }
+        if (!mongoose_1.default.Types.ObjectId.isValid(resourceId)) {
+            throw (0, http_errors_1.default)(400, 'Invalid "resourceId".');
+        }
+        const resource = yield resource_model_1.ResourceModel.findById(resourceId).session(session);
+        if (!resource) {
+            throw (0, http_errors_1.default)(404, 'Resource not found.');
+        }
+        let finalLink;
+        let datatype = '';
+        const newEntry = new resourceDataEntry_model_1.ResourceDataEntryModel({
+            datatype,
+            type,
+            name,
+            link: 'placeholder',
+        });
+        if (link) {
+            finalLink = link;
+            datatype = 'link';
+        }
+        else if (file && file.buffer) {
+            finalLink = `${resource._id}/${newEntry._id}`;
+            datatype = 'file';
+        }
+        else {
+            throw (0, http_errors_1.default)(400, 'Either "link" or "file" must be provided.');
+        }
+        newEntry.datatype = datatype;
+        newEntry.link = finalLink;
+        // Save entries inside the transaction
+        yield newEntry.save({ session });
+        resource.data.push(newEntry._id);
+        yield resource.save({ session });
+        // Upload to S3 (if it's a file)
+        if (datatype === 'file') {
+            yield (0, awsS3_1.uploadToS3)(file.buffer, finalLink, file.mimetype);
+            yield (0, awsS3_1.uploadFileToWhatsApp)(finalLink, name, newEntry._id);
+        }
+        // ✅ Commit only after everything succeeds
+        yield session.commitTransaction();
+        session.endSession();
+        res.status(201).json({
+            message: 'Resource data entry created.',
+            data: newEntry,
+        });
     }
-    if (!mongoose_1.default.Types.ObjectId.isValid(resourceId)) {
-        throw (0, http_errors_1.default)(400, 'Invalid "resourceId".');
+    catch (err) {
+        yield session.abortTransaction();
+        session.endSession();
+        console.error('Transaction failed:', err);
+        throw err;
     }
-    // Step 1: Validate resourceId
-    const resource = yield resource_model_1.ResourceModel.findById(resourceId);
-    if (!resource) {
-        throw (0, http_errors_1.default)(404, 'Resource not found.');
-    }
-    // Step 2: Handle file or link
-    let finalLink;
-    let datatype = '';
-    const file = req.file;
-    const newEntry = new resourceDataEntry_model_1.ResourceDataEntryModel({
-        datatype,
-        type,
-        name,
-        link: 'abc'
-    });
-    if (link) {
-        finalLink = link;
-        datatype = 'link';
-    }
-    else if (req.file && req.file.buffer) {
-        finalLink = `${resource === null || resource === void 0 ? void 0 : resource._id}/${newEntry._id}`;
-        yield (0, awsS3_1.uploadToS3)(file.buffer, finalLink, file.mimetype);
-        datatype = 'file';
-    }
-    else {
-        throw (0, http_errors_1.default)(400, 'Either "link" or "file" must be provided.');
-    }
-    newEntry.datatype = datatype;
-    newEntry.link = finalLink;
-    yield newEntry.save();
-    resource.data.push(newEntry._id);
-    yield resource.save();
-    res.status(201).json({ message: 'Resource data entry created.', data: newEntry });
 })));
 // POST /subdata
 exports.createRouter.post('/subdata', upload.single('file'), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {

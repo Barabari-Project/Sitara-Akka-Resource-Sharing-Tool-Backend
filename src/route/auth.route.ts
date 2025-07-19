@@ -5,57 +5,59 @@ import jwt from 'jsonwebtoken';
 import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
 import { UserRoles } from '../middleware/auth.middleware';
+import { WhatsappTemplateModel } from '../models/whatsappTemplate.model';
+import { sendTextTemplateMsg } from '../utility/wp';
 
 export const authRouter = Router();
 
 // POST /register
 authRouter.post('/register', expressAsyncHandler(async (req: Request, res: Response) => {
 
-    const { phoneNumber, firstName, lastName, age, gender, std } = req.body;
+  const { phoneNumber, firstName, lastName, age, gender, std } = req.body;
 
-    if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim() === '' || phoneNumber.trim().length !== 10) {
-        throw createHttpError(400, 'Phone number is required');
-    }
+  if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim() === '' || phoneNumber.trim().length !== 10) {
+    throw createHttpError(400, 'Phone number is required');
+  }
 
-    const user = await UserModel.findOneAndUpdate({ phoneNumber }, {
-        phoneNumber: phoneNumber.trim(),
-        firstName: firstName?.trim(),
-        lastName: lastName?.trim(),
-        age: age,
-        gender: gender?.trim(),
-        std: std?.trim(),
-        role: UserRoles.USER
-    }, { new: true });
+  const user = await UserModel.findOneAndUpdate({ phoneNumber }, {
+    phoneNumber: phoneNumber.trim(),
+    firstName: firstName?.trim(),
+    lastName: lastName?.trim(),
+    age: age,
+    gender: gender?.trim(),
+    std: std?.trim(),
+    role: UserRoles.USER
+  }, { new: true });
 
-    const token = jwt.sign({ phoneNumber: user?.phoneNumber, role: user?.role }, process.env.JWT_SECRET!, {
-        expiresIn: '7d'
-    });
-    res.status(201).json({ message: 'User registered', user, token });
+  const token = jwt.sign({ phoneNumber: user?.phoneNumber, role: user?.role }, process.env.JWT_SECRET!, {
+    expiresIn: '7d'
+  });
+  res.status(201).json({ message: 'User registered', user, token });
 
 }));
 
 // POST /login
 authRouter.post('/login', expressAsyncHandler(async (req: Request, res: Response) => {
 
-    const { phoneNumber } = req.body;
+  const { phoneNumber } = req.body;
 
-    if (!phoneNumber || typeof phoneNumber !== 'string') {
-        throw createHttpError(400, 'Phone number is required');
-    }
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    throw createHttpError(400, 'Phone number is required');
+  }
 
-    let user = await UserModel.findOne({ phoneNumber });
-    let isAlreadyPresent = true;
+  let user = await UserModel.findOne({ phoneNumber });
+  let isAlreadyPresent = true;
 
-    if (!user) {
-        user = await UserModel.create({ phoneNumber });
-        isAlreadyPresent = false;
-    }
+  if (!user) {
+    user = await UserModel.create({ phoneNumber });
+    isAlreadyPresent = false;
+  }
 
-    const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
-        expiresIn: '7d'
-    });
+  const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
+    expiresIn: '7d'
+  });
 
-    res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
+  res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
 
 }));
 
@@ -63,23 +65,23 @@ authRouter.post('/login', expressAsyncHandler(async (req: Request, res: Response
 // POST /login
 authRouter.post('/admin/login', expressAsyncHandler(async (req: Request, res: Response) => {
 
-    const { phoneNumber,password } = req.body;
+  const { phoneNumber, password } = req.body;
 
-    if (!phoneNumber || typeof phoneNumber !== 'string') {
-        throw createHttpError(400, 'Phone number is required');
-    }
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    throw createHttpError(400, 'Phone number is required');
+  }
 
-    let user = await UserModel.findOne({ phoneNumber, role: UserRoles.ADMIN,password:password });
+  let user = await UserModel.findOne({ phoneNumber, role: UserRoles.ADMIN, password: password });
 
-    if (!user) {
-        throw createHttpError(404, 'Invalid Credentials');
-    }
+  if (!user) {
+    throw createHttpError(404, 'Invalid Credentials');
+  }
 
-    const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
-        expiresIn: '7d'
-    });
+  const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
+    expiresIn: '7d'
+  });
 
-    res.status(200).json({ message: 'Login successful', token, user });
+  res.status(200).json({ message: 'Login successful', token, user });
 
 }));
 
@@ -147,6 +149,15 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
     { new: true, upsert: true }
   );
 
+  // TODO: JASH: verify this are we getting std as string? if not then change this if condition accordingly
+  if( std==10 ){
+    const templateNmae = await getTemplatesByType("10th Std");
+    sendTextTemplateMsg(phoneNumber,templateNmae!);
+  }else{
+    const templateName = await getTemplatesByType("Other Std");
+    sendTextTemplateMsg(phoneNumber,templateName!);
+  }
+
   // ✅ Generate token
   const token = jwt.sign(
     { phoneNumber: user?.phoneNumber, role: user?.role },
@@ -157,3 +168,28 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
   res.status(201).json({ message: 'User registered', user, token });
 }));
 
+
+
+export const getTemplatesByType = async (type: string): Promise<string | null> => {
+  try {
+    const template = await WhatsappTemplateModel.findOne({ type }).select('templateName -_id');
+    return template?.templateName || null;
+  } catch (error) {
+    console.error('Error fetching template:', error);
+    return null;
+  }
+};
+
+
+export const createTemplate = async () => {
+  try {
+    const newTemplate = await WhatsappTemplateModel.create({
+      type: 'Other Std', // or 'sms', etc.
+      templateName: 'WelcomeTemplate'
+    });
+
+    console.log('Template created successfully:', newTemplate);
+  } catch (error) {
+    console.error('Error creating template:', error);
+  }
+};

@@ -10,14 +10,18 @@ import { ResourceDataEntryModel } from '../models/resourceDataEntry.model';
 import { ResourceItemModel } from '../models/resourceItem.model';
 import { SubDataModel } from '../models/subdata.model';
 import { UserModel } from '../models/user.model';
-import { openWhatsAppWindow, sendMediaToWhatsApp } from '../utility/wp';
+import { sendMediaTemplate } from '../utility/wp';
 
 export const getRouter = Router();
 
 // GET unique languages
 getRouter.get('/resources/languages', expressAsyncHandler(async (req: Request, res: Response) => {
-    const languages = await ResourceModel.distinct('lan');
-    res.status(200).json({ languages });
+    const type = "language";
+    if (!Object.values(DropDownType).includes(type as DropDownType)) {
+        throw createHttpError(400, 'Invalid dropdown type');
+    }
+    const dropdownData: any = await DropDownModel.findOne({ type }).select('type value');
+    res.status(200).json({ languages: dropdownData.value });
 }));
 
 
@@ -102,7 +106,21 @@ getRouter.get('/resources/data/v1', expressAsyncHandler(async (req: Request, res
     res.status(200).json({ data: resource.data });
 }));
 
+getRouter.get('/send-file', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), expressAsyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.query;
+    const data = await ResourceDataEntryModel.findById(id);
+    if (!data) {
+        throw createHttpError(404, 'Internal server error. Please try again later.');
+    }
+    const media = await ExpiringMediaModel.findById(id);
 
+    if (!media) {
+        throw createHttpError(404, 'Internal server error. Please try again later.');
+    } else {
+        await sendMediaTemplate((req as any).phoneNumber, parseInt(media.mediaId), data.name);
+    }
+    res.status(200).json({ message: 'Media sent successfully' });
+}));
 
 // GET all resource data entries for a given resourceId
 getRouter.get('/resource-data-entries/:resourceId', expressAsyncHandler(async (req: Request, res: Response) => {
@@ -138,10 +156,7 @@ getRouter.get('/resource-items/:subDataId', expressAsyncHandler(async (req: Requ
     res.status(200).json({ items });
 }));
 
-getRouter.get("/ghi",expressAsyncHandler(async (req: Request, res: Response) => {
-    await openWhatsAppWindow("9033107408");
-    res.sendStatus(200);
-}));
+
 
 // GET resource item link by ID
 getRouter.get('/resource-items/link/:id', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), expressAsyncHandler(async (req: Request, res: Response) => {
@@ -162,7 +177,7 @@ getRouter.get('/resource-items/link/:id', authMiddleware([UserRoles.ADMIN, UserR
     if (!media) {
         throw createHttpError(404, 'Internal server error. Please try again later.');
     } else {
-        await sendMediaToWhatsApp(media.mediaId, (req as any).phoneNumber, media.mimeType);
+        // await sendMediaToWhatsApp(media.mediaId, (req as any).phoneNumber, media.mimeType);
     }
     res.status(200).json({ message: 'Media sent successfully' });
 }));
@@ -182,7 +197,7 @@ getRouter.get('/subdata/link/:id', authMiddleware([UserRoles.ADMIN, UserRoles.US
     if (!media) {
         throw createHttpError(404, 'Internal server error. Please try again later.');
     } else {
-        await sendMediaToWhatsApp(media.mediaId, (req as any).phoneNumber, media.mimeType);
+        // await sendMediaToWhatsApp(media.mediaId, (req as any).phoneNumber, media.mimeType);
     }
     res.status(200).json({ message: 'Media sent successfully' });
 }));

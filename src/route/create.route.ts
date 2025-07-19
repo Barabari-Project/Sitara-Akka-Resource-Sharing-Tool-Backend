@@ -7,7 +7,8 @@ import { ResourceDataEntryModel } from "../models/resourceDataEntry.model";
 import { ResourceItemModel } from "../models/resourceItem.model";
 import { SubDataModel } from "../models/subdata.model";
 import multer from "multer";
-import { deleteFromS3, uploadToS3 } from "../utility/awsS3";
+import { deleteFromS3, uploadFileToWhatsApp, uploadToS3 } from "../utility/awsS3";
+import { ExpiringMediaModel } from "../models/expiringMedia.model";
 
 export const createRouter = Router();
 
@@ -24,7 +25,7 @@ createRouter.post('/resources', expressAsyncHandler(async (req: Request, res: Re
     // Check for duplicate resource
     const existing = await ResourceModel.findOne({ lan, class: className, subj });
     if (existing) {
-        throw createHttpError(409, 'Resource with same lan, class, and subj already exists');
+        throw createHttpError(409, 'Subject with same lan, class, and subj already exists');
     }
 
     // Create and save new resource
@@ -37,7 +38,7 @@ createRouter.post('/resources', expressAsyncHandler(async (req: Request, res: Re
 
     await resource.save();
 
-    res.status(201).json({ message: 'Resource created', resource });
+    res.status(201).json({ message: 'Subject created', resource });
 
 }));
 
@@ -85,16 +86,16 @@ createRouter.delete('/resources/:id', expressAsyncHandler(async (req: Request, r
     const resource = await ResourceModel.findById(id);
 
     if (!resource) {
-        throw createHttpError(404, 'Resource not found');
+        throw createHttpError(404, 'Subject not found');
     }
 
     if (resource.data.length > 0) {
-        throw createHttpError(400, 'Cannot delete resource with linked data entries');
+        throw createHttpError(400, 'Cannot delete Subject with linked data entries');
     }
 
     await ResourceModel.findByIdAndDelete(id);
 
-    res.status(200).json({ message: 'Resource deleted successfully' });
+    res.status(200).json({ message: 'Subject deleted successfully' });
 }));
 
 // POST /resource-data-entries
@@ -266,6 +267,7 @@ createRouter.delete('/resource-data-entries/:id', expressAsyncHandler(async (req
         );
 
         await ResourceDataEntryModel.findByIdAndDelete(entry._id, { session });
+        await ExpiringMediaModel.findByIdAndDelete(entry._id, { session });
 
         await session.commitTransaction();
         res.status(200).json({ message: 'ResourceDataEntry deleted successfully' });
@@ -287,56 +289,79 @@ const upload = multer({ storage });
 
 createRouter.post(
     '/resources/data/v1',
-    upload.single('file'), // Handle file upload if present
+    upload.single('file'),
     expressAsyncHandler(async (req: Request, res: Response) => {
-        const { type, name, link, resourceId } = req.body;
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-        if (!type || !name || !resourceId) {
-            throw createHttpError(400, 'Fields "type", "name", and "resourceId" are required.');
+        try {
+            const { type, name, link, resourceId } = req.body;
+            const file = (req as any).file;
+
+            if (!type || !name || !resourceId) {
+                throw createHttpError(400, 'Fields "type", "name", and "resourceId" are required.');
+            }
+
+            if (!mongoose.Types.ObjectId.isValid(resourceId)) {
+                throw createHttpError(400, 'Invalid "resourceId".');
+            }
+
+            const resource = await ResourceModel.findById(resourceId).session(session);
+            if (!resource) {
+                throw createHttpError(404, 'Resource not found.');
+            }
+
+            let finalLink: string;
+            let datatype = '';
+
+            const newEntry = new ResourceDataEntryModel({
+                datatype,
+                type,
+                name,
+                link: 'placeholder',
+            });
+
+            if (link) {
+                finalLink = link;
+                datatype = 'link';
+            } else if (file && file.buffer) {
+                finalLink = `${resource._id}/${newEntry._id}`;
+                datatype = 'file';
+            } else {
+                throw createHttpError(400, 'Either "link" or "file" must be provided.');
+            }
+
+            newEntry.datatype = datatype;
+            newEntry.link = finalLink;
+
+            // Save entries inside the transaction
+            await newEntry.save({ session });
+            resource.data.push(newEntry._id);
+            await resource.save({ session });
+
+            // Upload to S3 (if it's a file)
+            if (datatype === 'file') {
+                await uploadToS3(file.buffer, finalLink, file.mimetype);
+                await uploadFileToWhatsApp(finalLink, name, newEntry._id);
+            }
+
+            // ✅ Commit only after everything succeeds
+            await session.commitTransaction();
+            session.endSession();
+
+            res.status(201).json({
+                message: 'Resource data entry created.',
+                data: newEntry,
+            });
+        } catch (err) {
+            await session.abortTransaction();
+            session.endSession();
+            console.error('Transaction failed:', err);
+            throw err;
         }
-
-        if (!mongoose.Types.ObjectId.isValid(resourceId)) {
-            throw createHttpError(400, 'Invalid "resourceId".');
-        }
-
-        // Step 1: Validate resourceId
-        const resource = await ResourceModel.findById(resourceId);
-        if (!resource) {
-            throw createHttpError(404, 'Resource not found.');
-        }
-
-        // Step 2: Handle file or link
-        let finalLink: string;
-        let datatype: string = '';
-        const file = (req as any).file;
-
-        const newEntry = new ResourceDataEntryModel({
-            datatype,
-            type,
-            name,
-            link: 'abc'
-        });
-
-        if (link) {
-            finalLink = link;
-            datatype = 'link';
-        } else if (req.file && req.file.buffer) {
-            finalLink = `${resource?._id}/${newEntry._id}`;
-            await uploadToS3(file.buffer, finalLink, file.mimetype);
-            datatype = 'file';
-        } else {
-            throw createHttpError(400, 'Either "link" or "file" must be provided.');
-        }
-
-        newEntry.datatype = datatype;
-        newEntry.link = finalLink;
-
-        await newEntry.save();
-        resource.data.push(newEntry._id);
-        await resource.save();
-        res.status(201).json({ message: 'Resource data entry created.', data: newEntry });
     })
 );
+
 
 // POST /subdata
 createRouter.post('/subdata', upload.single('file'), expressAsyncHandler(async (req: Request, res: Response) => {

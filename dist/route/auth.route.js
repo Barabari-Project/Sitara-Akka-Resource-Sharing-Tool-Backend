@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.authRouter = void 0;
+exports.createTemplate = exports.getTemplatesByType = exports.authRouter = void 0;
 // routes/auth.ts
 const express_1 = require("express");
 const user_model_1 = require("../models/user.model");
@@ -20,6 +20,8 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const http_errors_1 = __importDefault(require("http-errors"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
+const whatsappTemplate_model_1 = require("../models/whatsappTemplate.model");
+const wp_1 = require("../utility/wp");
 exports.authRouter = (0, express_1.Router)();
 // POST /register
 exports.authRouter.post('/register', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -104,7 +106,40 @@ exports.authRouter.post("/new_form", (0, express_async_handler_1.default)((req, 
     // ✅ Save or update user
     const user = yield user_model_1.UserModel.findOneAndUpdate({ phoneNumber }, Object.assign({ phoneNumber: phoneNumber.trim(), firstName: firstName === null || firstName === void 0 ? void 0 : firstName.trim(), lastName: lastName === null || lastName === void 0 ? void 0 : lastName.trim(), gender: gender === null || gender === void 0 ? void 0 : gender.trim(), std: std === null || std === void 0 ? void 0 : std.trim(), schoolName: schoolName.trim(), district: district.trim(), medium: medium.trim(), role: auth_middleware_1.UserRoles.USER }, (validQA ? { questionAnswers: validQA } : {}) // only include if valid
     ), { new: true, upsert: true });
+    // TODO: JASH: verify this are we getting std as string? if not then change this if condition accordingly
+    if (std == 10) {
+        const templateNmae = yield (0, exports.getTemplatesByType)("10th Std");
+        (0, wp_1.sendTextTemplateMsg)(phoneNumber, templateNmae);
+    }
+    else {
+        const templateName = yield (0, exports.getTemplatesByType)("Other Std");
+        (0, wp_1.sendTextTemplateMsg)(phoneNumber, templateName);
+    }
     // ✅ Generate token
     const token = jsonwebtoken_1.default.sign({ phoneNumber: user === null || user === void 0 ? void 0 : user.phoneNumber, role: user === null || user === void 0 ? void 0 : user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ message: 'User registered', user, token });
 })));
+const getTemplatesByType = (type) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const template = yield whatsappTemplate_model_1.WhatsappTemplateModel.findOne({ type }).select('templateName -_id');
+        return (template === null || template === void 0 ? void 0 : template.templateName) || null;
+    }
+    catch (error) {
+        console.error('Error fetching template:', error);
+        return null;
+    }
+});
+exports.getTemplatesByType = getTemplatesByType;
+const createTemplate = () => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const newTemplate = yield whatsappTemplate_model_1.WhatsappTemplateModel.create({
+            type: 'Other Std', // or 'sms', etc.
+            templateName: 'WelcomeTemplate'
+        });
+        console.log('Template created successfully:', newTemplate);
+    }
+    catch (error) {
+        console.error('Error creating template:', error);
+    }
+});
+exports.createTemplate = createTemplate;

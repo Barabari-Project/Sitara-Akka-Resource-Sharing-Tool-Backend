@@ -29,8 +29,12 @@ const wp_1 = require("../utility/wp");
 exports.getRouter = (0, express_1.Router)();
 // GET unique languages
 exports.getRouter.get('/resources/languages', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const languages = yield resource_model_1.ResourceModel.distinct('lan');
-    res.status(200).json({ languages });
+    const type = "language";
+    if (!Object.values(dropDown_model_1.DropDownType).includes(type)) {
+        throw (0, http_errors_1.default)(400, 'Invalid dropdown type');
+    }
+    const dropdownData = yield dropDown_model_1.DropDownModel.findOne({ type }).select('type value');
+    res.status(200).json({ languages: dropdownData.value });
 })));
 // GET unique subjects based on language
 exports.getRouter.get('/resources/subjects', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -98,6 +102,21 @@ exports.getRouter.get('/resources/data/v1', (0, express_async_handler_1.default)
     // Step 2: Return filtered resource data entries
     res.status(200).json({ data: resource.data });
 })));
+exports.getRouter.get('/send-file', (0, auth_middleware_1.authMiddleware)([auth_middleware_1.UserRoles.ADMIN, auth_middleware_1.UserRoles.USER]), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.query;
+    const data = yield resourceDataEntry_model_1.ResourceDataEntryModel.findById(id);
+    if (!data) {
+        throw (0, http_errors_1.default)(404, 'Internal server error. Please try again later.');
+    }
+    const media = yield expiringMedia_model_1.ExpiringMediaModel.findById(id);
+    if (!media) {
+        throw (0, http_errors_1.default)(404, 'Internal server error. Please try again later.');
+    }
+    else {
+        yield (0, wp_1.sendMediaTemplate)(req.phoneNumber, parseInt(media.mediaId), data.name);
+    }
+    res.status(200).json({ message: 'Media sent successfully' });
+})));
 // GET all resource data entries for a given resourceId
 exports.getRouter.get('/resource-data-entries/:resourceId', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { resourceId } = req.params;
@@ -127,10 +146,6 @@ exports.getRouter.get('/resource-items/:subDataId', (0, express_async_handler_1.
     }
     res.status(200).json({ items });
 })));
-exports.getRouter.get("/ghi", (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    yield (0, wp_1.openWhatsAppWindow)("9033107408");
-    res.sendStatus(200);
-})));
 // GET resource item link by ID
 exports.getRouter.get('/resource-items/link/:id', (0, auth_middleware_1.authMiddleware)([auth_middleware_1.UserRoles.ADMIN, auth_middleware_1.UserRoles.USER]), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
@@ -146,7 +161,7 @@ exports.getRouter.get('/resource-items/link/:id', (0, auth_middleware_1.authMidd
         throw (0, http_errors_1.default)(404, 'Internal server error. Please try again later.');
     }
     else {
-        yield (0, wp_1.sendMediaToWhatsApp)(media.mediaId, req.phoneNumber, media.mimeType);
+        // await sendMediaToWhatsApp(media.mediaId, (req as any).phoneNumber, media.mimeType);
     }
     res.status(200).json({ message: 'Media sent successfully' });
 })));
@@ -162,7 +177,7 @@ exports.getRouter.get('/subdata/link/:id', (0, auth_middleware_1.authMiddleware)
         throw (0, http_errors_1.default)(404, 'Internal server error. Please try again later.');
     }
     else {
-        yield (0, wp_1.sendMediaToWhatsApp)(media.mediaId, req.phoneNumber, media.mimeType);
+        // await sendMediaToWhatsApp(media.mediaId, (req as any).phoneNumber, media.mimeType);
     }
     res.status(200).json({ message: 'Media sent successfully' });
 })));
