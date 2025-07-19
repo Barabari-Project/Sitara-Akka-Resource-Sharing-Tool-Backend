@@ -150,7 +150,7 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
   );
 
   // TODO: JASH: verify this are we getting std as string? if not then change this if condition accordingly
-  if( std==10 ){
+  if( std=="10" ){
     const templateNmae = await getTemplatesByType("10th Std");
     sendTextTemplateMsg(phoneNumber,templateNmae!);
   }else{
@@ -193,3 +193,30 @@ export const createTemplate = async () => {
     console.error('Error creating template:', error);
   }
 };
+
+// GET /me
+authRouter.get('/get_user', expressAsyncHandler(async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw createHttpError(401, 'Authorization token missing or invalid');
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { phoneNumber: string, role: string };
+
+    const user = await UserModel.findOne({ phoneNumber: decoded.phoneNumber }).select('-password');
+
+    if (!user) {
+      throw createHttpError(404, 'User not found');
+    }
+
+    res.status(200).json({ user });
+
+  } catch (error) {
+    console.error(error);
+    throw createHttpError(401, 'Invalid or expired token');
+  }
+}));
