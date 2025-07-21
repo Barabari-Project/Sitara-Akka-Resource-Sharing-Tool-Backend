@@ -153,9 +153,6 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
   if( std=="10" ){
     const templateNmae = await getTemplatesByType("10th Std");
     sendTextTemplateMsg(phoneNumber,templateNmae!);
-  }else{
-    const templateName = await getTemplatesByType("Other Std");
-    sendTextTemplateMsg(phoneNumber,templateName!);
   }
 
   // ✅ Generate token

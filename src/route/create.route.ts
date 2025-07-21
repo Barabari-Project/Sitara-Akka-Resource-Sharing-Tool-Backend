@@ -341,8 +341,8 @@ createRouter.post(
 
             // Upload to S3 (if it's a file)
             if (datatype === 'file') {
-                await uploadToS3(file.buffer, finalLink, file.mimetype);
-                await uploadFileToWhatsApp(finalLink, name, newEntry._id);
+                const s3Url = await uploadToS3(file.buffer, finalLink, file.mimetype);
+                await uploadFileToWhatsApp(s3Url,file.mimetype, newEntry._id);
             }
 
             // ✅ Commit only after everything succeeds

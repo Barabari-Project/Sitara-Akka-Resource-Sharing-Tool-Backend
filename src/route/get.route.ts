@@ -117,7 +117,7 @@ getRouter.get('/send-file', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), e
     if (!media) {
         throw createHttpError(404, 'Internal server error. Please try again later.');
     } else {
-        await sendMediaTemplate((req as any).phoneNumber, parseInt(media.mediaId), data.name);
+        await sendMediaTemplate((req as any).phoneNumber, parseInt(media.mediaId), data.name,media.mimeType);
     }
     res.status(200).json({ message: 'Media sent successfully' });
 }));
