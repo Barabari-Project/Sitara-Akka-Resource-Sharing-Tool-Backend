@@ -29,7 +29,7 @@ exports.authRouter.post('/register', (0, express_async_handler_1.default)((req, 
     if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim() === '' || phoneNumber.trim().length !== 10) {
         throw (0, http_errors_1.default)(400, 'Phone number is required');
     }
-    const user = yield user_model_1.UserModel.findOneAndUpdate({ phoneNumber }, {
+    const user = yield user_model_1.UserModel.create({
         phoneNumber: phoneNumber.trim(),
         firstName: firstName === null || firstName === void 0 ? void 0 : firstName.trim(),
         lastName: lastName === null || lastName === void 0 ? void 0 : lastName.trim(),
@@ -37,8 +37,8 @@ exports.authRouter.post('/register', (0, express_async_handler_1.default)((req, 
         gender: gender === null || gender === void 0 ? void 0 : gender.trim(),
         std: std === null || std === void 0 ? void 0 : std.trim(),
         role: auth_middleware_1.UserRoles.USER
-    }, { new: true });
-    const token = jsonwebtoken_1.default.sign({ phoneNumber: user === null || user === void 0 ? void 0 : user.phoneNumber, role: user === null || user === void 0 ? void 0 : user.role }, process.env.JWT_SECRET, {
+    });
+    const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber, role: user === null || user === void 0 ? void 0 : user.role }, process.env.JWT_SECRET, {
         expiresIn: '7d'
     });
     res.status(201).json({ message: 'User registered', user, token });
@@ -52,13 +52,16 @@ exports.authRouter.post('/login', (0, express_async_handler_1.default)((req, res
     let user = yield user_model_1.UserModel.findOne({ phoneNumber });
     let isAlreadyPresent = true;
     if (!user) {
-        user = yield user_model_1.UserModel.create({ phoneNumber });
+        // user = await UserModel.create({ phoneNumber });
         isAlreadyPresent = false;
     }
-    const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET, {
-        expiresIn: '7d'
-    });
-    res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
+    if (user) {
+        const token = jsonwebtoken_1.default.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET, {
+            expiresIn: '7d'
+        });
+        res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
+    }
+    res.status(200).json({ isAlreadyPresent });
 })));
 // POST /login
 exports.authRouter.post('/admin/login', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -110,10 +113,6 @@ exports.authRouter.post("/new_form", (0, express_async_handler_1.default)((req, 
     if (std == "10") {
         const templateNmae = yield (0, exports.getTemplatesByType)("10th Std");
         (0, wp_1.sendTextTemplateMsg)(phoneNumber, templateNmae);
-    }
-    else {
-        const templateName = yield (0, exports.getTemplatesByType)("Other Std");
-        (0, wp_1.sendTextTemplateMsg)(phoneNumber, templateName);
     }
     // ✅ Generate token
     const token = jsonwebtoken_1.default.sign({ phoneNumber: user === null || user === void 0 ? void 0 : user.phoneNumber, role: user === null || user === void 0 ? void 0 : user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });

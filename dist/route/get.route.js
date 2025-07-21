@@ -113,7 +113,7 @@ exports.getRouter.get('/send-file', (0, auth_middleware_1.authMiddleware)([auth_
         throw (0, http_errors_1.default)(404, 'Internal server error. Please try again later.');
     }
     else {
-        yield (0, wp_1.sendMediaTemplate)(req.phoneNumber, parseInt(media.mediaId), data.name);
+        yield (0, wp_1.sendMediaTemplate)(req.phoneNumber, parseInt(media.mediaId), data.name, media.mimeType);
     }
     res.status(200).json({ message: 'Media sent successfully' });
 })));

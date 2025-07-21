@@ -282,8 +282,8 @@ exports.createRouter.post('/resources/data/v1', upload.single('file'), (0, expre
         yield resource.save({ session });
         // Upload to S3 (if it's a file)
         if (datatype === 'file') {
-            yield (0, awsS3_1.uploadToS3)(file.buffer, finalLink, file.mimetype);
-            yield (0, awsS3_1.uploadFileToWhatsApp)(finalLink, name, newEntry._id);
+            const s3Url = yield (0, awsS3_1.uploadToS3)(file.buffer, finalLink, file.mimetype);
+            yield (0, awsS3_1.uploadFileToWhatsApp)(s3Url, file.mimetype, newEntry._id);
         }
         // ✅ Commit only after everything succeeds
         yield session.commitTransaction();
