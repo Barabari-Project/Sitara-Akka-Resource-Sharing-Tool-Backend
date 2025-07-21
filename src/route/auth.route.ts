@@ -19,7 +19,7 @@ authRouter.post('/register', expressAsyncHandler(async (req: Request, res: Respo
     throw createHttpError(400, 'Phone number is required');
   }
 
-  const user = await UserModel.findOneAndUpdate({ phoneNumber }, {
+  const user = await UserModel.create({
     phoneNumber: phoneNumber.trim(),
     firstName: firstName?.trim(),
     lastName: lastName?.trim(),
@@ -27,9 +27,9 @@ authRouter.post('/register', expressAsyncHandler(async (req: Request, res: Respo
     gender: gender?.trim(),
     std: std?.trim(),
     role: UserRoles.USER
-  }, { new: true });
+  });
 
-  const token = jwt.sign({ phoneNumber: user?.phoneNumber, role: user?.role }, process.env.JWT_SECRET!, {
+  const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user?.role }, process.env.JWT_SECRET!, {
     expiresIn: '7d'
   });
   res.status(201).json({ message: 'User registered', user, token });
@@ -49,15 +49,17 @@ authRouter.post('/login', expressAsyncHandler(async (req: Request, res: Response
   let isAlreadyPresent = true;
 
   if (!user) {
-    user = await UserModel.create({ phoneNumber });
+    // user = await UserModel.create({ phoneNumber });
     isAlreadyPresent = false;
   }
+  if (user) {
+    const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
+      expiresIn: '7d'
+    });
+    res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
+  }
 
-  const token = jwt.sign({ phoneNumber: user.phoneNumber, role: user.role }, process.env.JWT_SECRET!, {
-    expiresIn: '7d'
-  });
-
-  res.status(200).json({ message: 'Login successful', token, user, isAlreadyPresent });
+  res.status(200).json({isAlreadyPresent });
 
 }));
 
@@ -150,7 +152,7 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
   );
 
   // TODO: JASH: verify this are we getting std as string? if not then change this if condition accordingly
-  if( std=="10" ){
+  if (std == "10") {
     const templateNmae = await getTemplatesByType("10th Std");
     sendTextTemplateMsg(phoneNumber,templateNmae!);
   }
