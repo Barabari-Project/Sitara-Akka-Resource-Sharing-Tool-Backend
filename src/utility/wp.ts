@@ -22,6 +22,7 @@ const sendMediaToWhatsApp = async (mediaId: string, toPhoneNumber: string, mimeT
 }
 
 export const sendTextTemplateMsg = async (toPhoneNumber: string, templateNmae: string) => {
+  
   try {
     const response = await axios.post(`${process.env.WP_SERVER_BASE_URL}/${wpEndPoint.openWhatsAppWindow}`, {
       toPhoneNumber,
@@ -55,7 +56,7 @@ export const sendMediaTemplate = async (toPhoneNumber: string, mediaId: number, 
 
 
   const response = await axios.post(
-    'https://next.meteor.sitaraakka.org/api/athena/messages/media',
+    `${process.env.WP_SERVER_BASE_URL}/${wpEndPoint.openWhatsAppWindow}`,
     {
       templateName: 'test_3',
       templateLanguage: 'en',

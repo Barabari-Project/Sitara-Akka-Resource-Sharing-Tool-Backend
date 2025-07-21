@@ -65,7 +65,7 @@ const sendMediaTemplate = (toPhoneNumber, mediaId, fileNmae, mimetype) => __awai
     else {
         type = 'document';
     }
-    const response = yield axios_1.default.post('https://next.meteor.sitaraakka.org/api/athena/messages/media', {
+    const response = yield axios_1.default.post(`${process.env.WP_SERVER_BASE_URL}/${wpEndPoint_1.wpEndPoint.openWhatsAppWindow}`, {
         templateName: 'test_3',
         templateLanguage: 'en',
         toPhoneNumber: toPhoneNumber,

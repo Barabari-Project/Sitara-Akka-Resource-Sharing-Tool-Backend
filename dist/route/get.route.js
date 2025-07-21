@@ -102,7 +102,8 @@ exports.getRouter.get('/resources/data/v1', (0, express_async_handler_1.default)
     // Step 2: Return filtered resource data entries
     res.status(200).json({ data: resource.data });
 })));
-exports.getRouter.get('/send-file', (0, auth_middleware_1.authMiddleware)([auth_middleware_1.UserRoles.ADMIN, auth_middleware_1.UserRoles.USER]), (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+// authMiddleware([UserRoles.ADMIN, UserRoles.USER]),
+exports.getRouter.get('/send-file', (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.query;
     const data = yield resourceDataEntry_model_1.ResourceDataEntryModel.findById(id);
     if (!data) {

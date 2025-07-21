@@ -105,8 +105,8 @@ getRouter.get('/resources/data/v1', expressAsyncHandler(async (req: Request, res
     // Step 2: Return filtered resource data entries
     res.status(200).json({ data: resource.data });
 }));
-
-getRouter.get('/send-file', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), expressAsyncHandler(async (req: Request, res: Response) => {
+// authMiddleware([UserRoles.ADMIN, UserRoles.USER]),
+getRouter.get('/send-file',  expressAsyncHandler(async (req: Request, res: Response) => {
     const { id } = req.query;
     const data = await ResourceDataEntryModel.findById(id);
     if (!data) {
@@ -121,6 +121,8 @@ getRouter.get('/send-file', authMiddleware([UserRoles.ADMIN, UserRoles.USER]), e
     }
     res.status(200).json({ message: 'Media sent successfully' });
 }));
+
+
 
 // GET all resource data entries for a given resourceId
 getRouter.get('/resource-data-entries/:resourceId', expressAsyncHandler(async (req: Request, res: Response) => {
