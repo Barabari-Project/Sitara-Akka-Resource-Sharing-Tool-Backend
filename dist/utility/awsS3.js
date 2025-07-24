@@ -16,6 +16,7 @@ exports.uploadFileToWhatsApp = exports.getFileFromS3 = exports.getS3Link = expor
 const client_s3_1 = require("@aws-sdk/client-s3");
 const axios_1 = __importDefault(require("axios"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const http_errors_1 = __importDefault(require("http-errors"));
 const mongoose_1 = require("mongoose");
 const expiringMedia_model_1 = require("../models/expiringMedia.model");
 dotenv_1.default.config();
@@ -95,7 +96,7 @@ const uploadFileToWhatsApp = (s3Url, mimeType, _id) => __awaiter(void 0, void 0,
     }
     catch (error) {
         console.error('Upload failed:', ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
-        throw error;
+        throw (0, http_errors_1.default)(400, "Whatsapp Upload get failed. Please connect your developer.");
     }
     finally {
         yield session.endSession();
