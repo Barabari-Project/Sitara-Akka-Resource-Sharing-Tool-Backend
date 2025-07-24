@@ -1,9 +1,8 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import FormData from 'form-data';
+import createHttpError from 'http-errors';
 import { startSession, Types } from 'mongoose';
-import { Readable } from 'stream';
 import { ExpiringMediaModel } from '../models/expiringMedia.model';
 dotenv.config();
 
@@ -92,7 +91,7 @@ export const uploadFileToWhatsApp = async (s3Url: string,mimeType:string, _id: T
         return response.data;
     } catch (error: any) {
         console.error('Upload failed:', error.response?.data || error.message);
-        throw error;
+        throw createHttpError(400,"Whatsapp Upload get failed. Please connect your developer.");
     } finally {
         await session.endSession();
     }

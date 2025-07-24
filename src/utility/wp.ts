@@ -53,8 +53,7 @@ export const sendMediaTemplate = async (toPhoneNumber: string, mediaId: number, 
   } else {
     type = 'document';
   }
-
-
+  
   const response = await axios.post(
     `${process.env.WP_SERVER_BASE_URL}/${wpEndPoint.openWhatsAppWindow}`,
     {
