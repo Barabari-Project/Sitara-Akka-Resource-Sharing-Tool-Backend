@@ -295,7 +295,7 @@ createRouter.post(
         session.startTransaction();
 
         try {
-            const { type, name, link, resourceId, index} = req.body;
+            const { type, name, link, resourceId, index } = req.body;
             const file = (req as any).file;
 
             if (!type || !name || !resourceId || !index) {
@@ -343,7 +343,7 @@ createRouter.post(
             // Upload to S3 (if it's a file)
             if (datatype === 'file') {
                 const s3Url = await uploadToS3(file.buffer, finalLink, file.mimetype);
-                await uploadFileToWhatsApp(s3Url,file.mimetype, newEntry._id);
+                await uploadFileToWhatsApp(s3Url, file.mimetype, newEntry._id);
             }
 
             // ✅ Commit only after everything succeeds
@@ -362,6 +362,33 @@ createRouter.post(
         }
     })
 );
+
+createRouter.put("/resource/index/v1", expressAsyncHandler(async (req: Request, res: Response) => {
+    const { entryId, index } = req.body;
+
+    if (!entryId || !mongoose.Types.ObjectId.isValid(entryId)) {
+        throw createHttpError(400, 'Valid "entryId" is required.');
+    }
+
+    if (index === undefined || typeof index !== "number" || index < 1) {
+        throw createHttpError(400, '"index" must be a positive number.');
+    }
+
+    const entry = await ResourceDataEntryModel.findById(entryId);
+    if (!entry) {
+        throw createHttpError(404, 'ResourceDataEntry not found.');
+    }
+
+    entry.index = index;
+    await entry.save();
+
+    res.status(200).json({
+        success:true,
+        message: "Index updated successfully.",
+        data: entry,
+    });
+}));
+
 
 
 // POST /subdata
