@@ -295,11 +295,11 @@ createRouter.post(
         session.startTransaction();
 
         try {
-            const { type, name, link, resourceId } = req.body;
+            const { type, name, link, resourceId, index} = req.body;
             const file = (req as any).file;
 
-            if (!type || !name || !resourceId) {
-                throw createHttpError(400, 'Fields "type", "name", and "resourceId" are required.');
+            if (!type || !name || !resourceId || !index) {
+                throw createHttpError(400, 'Fields "type", "name", "index", and "resourceId" are required.');
             }
 
             if (!mongoose.Types.ObjectId.isValid(resourceId)) {
@@ -319,6 +319,7 @@ createRouter.post(
                 type,
                 name,
                 link: 'placeholder',
+                index
             });
 
             if (link) {
