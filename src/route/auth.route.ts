@@ -153,8 +153,8 @@ authRouter.post("/new_form", expressAsyncHandler(async (req: Request, res: Respo
 
   // TODO: JASH: verify this are we getting std as string? if not then change this if condition accordingly
   if (std == "10") {
-    const templateNmae = await getTemplatesByType("10th Std");
-    sendTextTemplateMsg(phoneNumber,templateNmae!);
+    console.log(std);
+    sendTextTemplateMsg("91"+phoneNumber,"welcome_message_2025");
   }
 
   // ✅ Generate token

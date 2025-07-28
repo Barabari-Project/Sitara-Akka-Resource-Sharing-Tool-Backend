@@ -111,8 +111,8 @@ exports.authRouter.post("/new_form", (0, express_async_handler_1.default)((req, 
     ), { new: true, upsert: true });
     // TODO: JASH: verify this are we getting std as string? if not then change this if condition accordingly
     if (std == "10") {
-        const templateNmae = yield (0, exports.getTemplatesByType)("10th Std");
-        (0, wp_1.sendTextTemplateMsg)(phoneNumber, templateNmae);
+        console.log(std);
+        (0, wp_1.sendTextTemplateMsg)("91" + phoneNumber, "welcome_message_2025");
     }
     // ✅ Generate token
     const token = jsonwebtoken_1.default.sign({ phoneNumber: user === null || user === void 0 ? void 0 : user.phoneNumber, role: user === null || user === void 0 ? void 0 : user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
