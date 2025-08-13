@@ -147,3 +147,4 @@ ecosystem.config.js
 .svelte-kit
 
 # End of https://www.toptal.com/developers/gitignore/api/node
+.vercel
