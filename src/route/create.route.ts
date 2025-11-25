@@ -289,17 +289,19 @@ const upload = multer({ storage });
 
 createRouter.post(
     '/resources/data/v1',
-    upload.single('file'),
     expressAsyncHandler(async (req: Request, res: Response) => {
         const session = await mongoose.startSession();
         session.startTransaction();
 
         try {
             const { type, name, link, resourceId, index } = req.body;
-            const file = (req as any).file;
 
             if (!type || !name || !resourceId || !index) {
                 throw createHttpError(400, 'Fields "type", "name", "index", and "resourceId" are required.');
+            }
+
+            if (!link || typeof link !== 'string' || link.trim() === '') {
+                throw createHttpError(400, 'Field "link" is required and cannot be empty.');
             }
 
             if (!mongoose.Types.ObjectId.isValid(resourceId)) {
@@ -311,39 +313,49 @@ createRouter.post(
                 throw createHttpError(404, 'Resource not found.');
             }
 
-            let finalLink: string;
-            let datatype = '';
+            // Determine datatype based on link format
+            // If link contains S3 bucket URL, it's a file, otherwise it's a regular link
+            const isS3File = link.includes('.s3.') || link.includes('s3.amazonaws.com');
+            const datatype = isS3File ? 'file' : 'link';
 
             const newEntry = new ResourceDataEntryModel({
                 datatype,
                 type,
                 name,
-                link: 'placeholder',
+                link: link.trim(),
                 index
             });
-
-            if (link) {
-                finalLink = link;
-                datatype = 'link';
-            } else if (file && file.buffer) {
-                finalLink = `${resource._id}/${newEntry._id}`;
-                datatype = 'file';
-            } else {
-                throw createHttpError(400, 'Either "link" or "file" must be provided.');
-            }
-
-            newEntry.datatype = datatype;
-            newEntry.link = finalLink;
 
             // Save entries inside the transaction
             await newEntry.save({ session });
             resource.data.push(newEntry._id);
             await resource.save({ session });
 
-            // Upload to S3 (if it's a file)
+            // Upload to WhatsApp (if it's a file)
             if (datatype === 'file') {
-                const s3Url = await uploadToS3(file.buffer, finalLink, file.mimetype);
-                await uploadFileToWhatsApp(s3Url, file.mimetype, newEntry._id);
+                // Extract MIME type from file extension or use default
+                const fileExtension = link.split('.').pop()?.toLowerCase();
+                const mimeTypeMap: Record<string, string> = {
+                    'pdf': 'application/pdf',
+                    'jpg': 'image/jpeg',
+                    'jpeg': 'image/jpeg',
+                    'png': 'image/png',
+                    'gif': 'image/gif',
+                    'mp4': 'video/mp4',
+                    'mp3': 'audio/mpeg',
+                    'doc': 'application/msword',
+                    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'xls': 'application/vnd.ms-excel',
+                    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                };
+                const mimeType = mimeTypeMap[fileExtension || ''] || 'application/octet-stream';
+
+                try {
+                    await uploadFileToWhatsApp(link, mimeType, newEntry._id);
+                } catch (whatsappError) {
+                    console.error('WhatsApp upload failed:', whatsappError);
+                    // Continue without failing the entire request
+                }
             }
 
             // ✅ Commit only after everything succeeds
